@@ -160,7 +160,11 @@ def gerar_fundo_ia(
         )
 
         if resultado.returncode != 0:
-            # Log silencioso — o chamador decide se exibe erro
+            try:
+                from alina.logger import log
+                log.warning(f"nano-banana-2: infsh retornou código {resultado.returncode} — {resultado.stderr[:200]}")
+            except Exception:
+                pass
             return None
 
         saida = resultado.stdout + resultado.stderr
@@ -186,8 +190,16 @@ def gerar_fundo_ia(
             return str(destino)
 
     except subprocess.TimeoutExpired:
-        pass
-    except Exception:
-        pass
+        try:
+            from alina.logger import log
+            log.warning(f"nano-banana-2: timeout após {timeout_segundos}s para segmento '{segmento_key}'")
+        except Exception:
+            pass
+    except Exception as exc:
+        try:
+            from alina.logger import log
+            log.warning(f"nano-banana-2: erro inesperado — {exc}")
+        except Exception:
+            pass
 
     return None

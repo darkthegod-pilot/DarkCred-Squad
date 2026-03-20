@@ -57,6 +57,8 @@ Exemplos:
   python main.py --imagem                     # copies + imagem PNG
   python main.py --imagem --template 1        # força template escuro
   python main.py --imagem --ia                # fundo gerado por IA (requer infsh)
+  python main.py --preview-templates          # visualiza os 3 layouts (sem API)
+  python main.py --regenerar-imagens out.json # regera imagens de JSON salvo
   python main.py --analisar foto.jpg          # analisa resultado
   python main.py --chat                       # conversa com Alina
   python main.py --aprendizado                # ver aprendizado
@@ -100,6 +102,14 @@ Exemplos:
     parser.add_argument(
         "--ia", action="store_true",
         help="Usa nano-banana-2 (Gemini) para gerar fundo da imagem (requer infsh)",
+    )
+    parser.add_argument(
+        "--preview-templates", action="store_true",
+        help="Gera preview dos 3 templates com copy fictício (sem API key)",
+    )
+    parser.add_argument(
+        "--regenerar-imagens", metavar="JSON",
+        help="Caminho para JSON de saída salvo — regera as imagens dos copies",
     )
 
     return parser.parse_args()
@@ -401,6 +411,104 @@ def executar_chat(modelo: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────
+# PREVIEW DE TEMPLATES
+# ─────────────────────────────────────────────────────────────
+
+def _executar_preview_templates(template_forçado: int | None = None) -> None:
+    """Gera PNGs de preview dos templates sem precisar de API key."""
+    try:
+        from alina.gerador_imagem import gerar_previews_templates, PILLOW_DISPONIVEL
+    except ImportError:
+        console.print("[yellow]⚠️  Pillow não instalado. Execute: pip install Pillow[/yellow]")
+        return
+
+    if not PILLOW_DISPONIVEL:
+        console.print("[yellow]⚠️  Pillow não disponível. Execute: pip install Pillow[/yellow]")
+        return
+
+    console.print()
+    console.rule("[bold magenta]🎨 Preview dos Templates — Alina Pretrov[/bold magenta]")
+    console.print()
+
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[magenta]Gerando previews...[/magenta]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        caminhos = gerar_previews_templates()
+
+    nomes = ["Template 1 — Escuro Moderno", "Template 2 — Claro Impacto", "Template 3 — Comerciante"]
+    for i, (nome, caminho) in enumerate(zip(nomes, caminhos), 1):
+        console.print(
+            Panel(
+                f"[cyan]{caminho}[/cyan]",
+                title=f"[bold]{nome}[/bold]",
+                border_style="magenta",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+        )
+
+    console.print(
+        f"\n  [dim]Use o Read tool nos caminhos acima para visualizar aqui no chat.[/dim]\n"
+    )
+    log.info(f"Previews gerados: {caminhos}")
+
+
+# ─────────────────────────────────────────────────────────────
+# REGENERAR IMAGENS
+# ─────────────────────────────────────────────────────────────
+
+def _executar_regenerar_imagens(caminho_json: str, template: int | None = None) -> None:
+    """Lê JSON de saída salvo e regera imagens para os copies nele contidos."""
+    try:
+        from alina.gerador_imagem import regenerar_imagens_de_json, PILLOW_DISPONIVEL
+    except ImportError:
+        console.print("[yellow]⚠️  Pillow não instalado. Execute: pip install Pillow[/yellow]")
+        return
+
+    if not PILLOW_DISPONIVEL:
+        console.print("[yellow]⚠️  Pillow não disponível. Execute: pip install Pillow[/yellow]")
+        return
+
+    if not Path(caminho_json).exists():
+        console.print(f"[red]❌ Arquivo não encontrado:[/red] {caminho_json}")
+        return
+
+    console.print()
+    console.rule(f"[bold cyan]🔄 Regenerando Imagens — {Path(caminho_json).name}[/bold cyan]")
+    console.print()
+
+    caminhos = []
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[cyan]Gerando imagens...[/cyan]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        try:
+            caminhos = regenerar_imagens_de_json(caminho_json, template=template)
+        except Exception as e:
+            console.print(f"[red]❌ Erro:[/red] {e}")
+            log.error(f"Erro ao regenerar imagens de {caminho_json}: {e}")
+            return
+
+    if caminhos:
+        from rich.table import Table
+        tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+        tbl.add_column("N", style="dim", width=4)
+        tbl.add_column("Arquivo", style="cyan")
+        for i, c in enumerate(caminhos, 1):
+            tbl.add_row(str(i), c)
+        console.print(tbl)
+        console.print(f"  [dim]{len(caminhos)} imagem(ns) gerada(s) com sucesso.[/dim]\n")
+        log.info(f"Imagens regeneradas de {caminho_json}: {caminhos}")
+
+
+# ─────────────────────────────────────────────────────────────
 # PONTO DE ENTRADA
 # ─────────────────────────────────────────────────────────────
 
@@ -422,6 +530,14 @@ def main() -> None:
 
     if args.chat:
         executar_chat(args.modelo)
+        return
+
+    if args.preview_templates:
+        _executar_preview_templates(args.template)
+        return
+
+    if args.regenerar_imagens:
+        _executar_regenerar_imagens(args.regenerar_imagens, args.template)
         return
 
     # ── Modo geração ───────────────────────────────────────────

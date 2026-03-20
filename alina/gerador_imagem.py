@@ -9,129 +9,174 @@ Três templates DarkCred:
 """
 
 import random
-import textwrap
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
-# Pillow é importado com fallback claro
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    from PIL import Image, ImageDraw, ImageFont
     PILLOW_DISPONIVEL = True
 except ImportError:
     PILLOW_DISPONIVEL = False
+
+try:
+    import numpy as np
+    NUMPY_DISPONIVEL = True
+except ImportError:
+    NUMPY_DISPONIVEL = False
 
 # ─────────────────────────────────────────────────────────────
 # PALETA DARKCRED
 # ─────────────────────────────────────────────────────────────
 
 CORES = {
-    # Escuros
-    "roxo_escuro":  (26, 5, 51),       # #1a0533
-    "azul_escuro":  (13, 27, 75),      # #0d1b4b
-    "verde_escuro": (13, 51, 33),      # #0d3321
-    "verde_medio":  (26, 92, 58),      # #1a5c3a
-    # Acentos
-    "laranja":      (255, 107, 53),    # #FF6B35
-    "dourado":      (255, 215, 0),     # #FFD700
+    "roxo_escuro":  (26, 5, 51),
+    "azul_escuro":  (13, 27, 75),
+    "verde_escuro": (13, 51, 33),
+    "verde_medio":  (26, 92, 58),
+    "laranja":      (255, 107, 53),
+    "laranja_sombra": (180, 70, 30),
+    "dourado":      (255, 215, 0),
+    "dourado_sombra": (180, 150, 0),
     "branco":       (255, 255, 255),
     "branco_suave": (240, 240, 240),
     "cinza_claro":  (200, 200, 200),
     "preto":        (0, 0, 0),
-    "preto_suave":  (26, 26, 26),      # #1a1a1a
+    "preto_suave":  (26, 26, 26),
+    "sombra_escura": (0, 0, 0),
 }
 
 TAMANHO_CANVAS = (1080, 1080)
 DIRETORIO_SAIDA = Path("saidas/imagens")
 
 # ─────────────────────────────────────────────────────────────
-# FONTES
+# FONTES com cache
 # ─────────────────────────────────────────────────────────────
 
-_CANDIDATOS_FONTES = [
+_CANDIDATOS_FONTES_BOLD = [
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+_CANDIDATOS_FONTES_REGULAR = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
+_FONTE_CACHE: dict = {}
+
 
 def _carregar_fonte(tamanho: int, negrito: bool = False) -> "ImageFont.FreeTypeFont":
-    """Carrega a melhor fonte disponível no sistema."""
-    if not PILLOW_DISPONIVEL:
-        raise RuntimeError("Pillow não está instalado.")
-    preferencia = [f for f in _CANDIDATOS_FONTES if ("Bold" in f) == negrito]
-    if not preferencia:
-        preferencia = _CANDIDATOS_FONTES
-    for caminho in preferencia:
+    key = (tamanho, negrito)
+    if key in _FONTE_CACHE:
+        return _FONTE_CACHE[key]
+    candidatos = _CANDIDATOS_FONTES_BOLD if negrito else _CANDIDATOS_FONTES_REGULAR
+    for caminho in candidatos:
         if Path(caminho).exists():
             try:
-                return ImageFont.truetype(caminho, tamanho)
+                fonte = ImageFont.truetype(caminho, tamanho)
+                _FONTE_CACHE[key] = fonte
+                return fonte
             except Exception:
                 continue
-    return ImageFont.load_default()
+    fonte = ImageFont.load_default()
+    _FONTE_CACHE[key] = fonte
+    return fonte
 
 
 # ─────────────────────────────────────────────────────────────
-# HELPERS DE DESENHO
+# GRADIENTES (otimizados com numpy quando disponível)
 # ─────────────────────────────────────────────────────────────
 
-def _gradiente_vertical(
-    draw: "ImageDraw.ImageDraw",
-    cor_topo: tuple,
-    cor_base: tuple,
-    largura: int,
-    altura: int,
-) -> None:
-    """Preenche o canvas com gradiente vertical."""
-    for y in range(altura):
-        t = y / altura
-        r = int(cor_topo[0] + (cor_base[0] - cor_topo[0]) * t)
-        g = int(cor_topo[1] + (cor_base[1] - cor_topo[1]) * t)
-        b = int(cor_topo[2] + (cor_base[2] - cor_topo[2]) * t)
-        draw.line([(0, y), (largura, y)], fill=(r, g, b))
-
-
-def _gradiente_diagonal(
-    draw: "ImageDraw.ImageDraw",
-    cor_topo: tuple,
-    cor_base: tuple,
-    largura: int,
-    altura: int,
-) -> None:
-    """Gradiente diagonal (canto superior esquerdo → inferior direito)."""
-    for y in range(altura):
-        for x_band in range(0, largura, 4):
-            t = (x_band / largura + y / altura) / 2
+def _gradiente_vertical_img(
+    cor_topo: tuple, cor_base: tuple, largura: int, altura: int
+) -> "Image.Image":
+    """Gera imagem com gradiente vertical usando numpy (rápido) ou fallback."""
+    if NUMPY_DISPONIVEL:
+        t = np.linspace(0, 1, altura, dtype=np.float32)
+        r = (cor_topo[0] + (cor_base[0] - cor_topo[0]) * t).astype(np.uint8)
+        g = (cor_topo[1] + (cor_base[1] - cor_topo[1]) * t).astype(np.uint8)
+        b = (cor_topo[2] + (cor_base[2] - cor_topo[2]) * t).astype(np.uint8)
+        array = np.stack([r, g, b], axis=1)          # (altura, 3)
+        array = np.repeat(array[:, np.newaxis, :], largura, axis=1)  # (altura, largura, 3)
+        return Image.fromarray(array, "RGB")
+    else:
+        img = Image.new("RGB", (largura, altura))
+        draw = ImageDraw.Draw(img)
+        for y in range(altura):
+            t = y / max(altura - 1, 1)
             r = int(cor_topo[0] + (cor_base[0] - cor_topo[0]) * t)
             g = int(cor_topo[1] + (cor_base[1] - cor_topo[1]) * t)
             b = int(cor_topo[2] + (cor_base[2] - cor_topo[2]) * t)
-            draw.line([(x_band, y), (min(x_band + 4, largura), y)], fill=(r, g, b))
+            draw.line([(0, y), (largura, y)], fill=(r, g, b))
+        return img
 
 
-def _quebrar_texto(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list[str]:
-    """Quebra texto para caber em max_px de largura."""
+def _gradiente_diagonal_img(
+    cor_topo: tuple, cor_base: tuple, largura: int, altura: int
+) -> "Image.Image":
+    """Gera imagem com gradiente diagonal (canto sup-esq → inf-dir)."""
+    if NUMPY_DISPONIVEL:
+        y_idx = np.linspace(0, 1, altura, dtype=np.float32)
+        x_idx = np.linspace(0, 1, largura, dtype=np.float32)
+        # t[y, x] = (y + x) / 2
+        t = (y_idx[:, np.newaxis] + x_idx[np.newaxis, :]) / 2
+        t = np.clip(t, 0, 1).astype(np.float32)
+        r = (cor_topo[0] + (cor_base[0] - cor_topo[0]) * t).astype(np.uint8)
+        g = (cor_topo[1] + (cor_base[1] - cor_topo[1]) * t).astype(np.uint8)
+        b = (cor_topo[2] + (cor_base[2] - cor_topo[2]) * t).astype(np.uint8)
+        array = np.stack([r, g, b], axis=2)
+        return Image.fromarray(array, "RGB")
+    else:
+        return _gradiente_vertical_img(cor_topo, cor_base, largura, altura)
+
+
+# ─────────────────────────────────────────────────────────────
+# HELPERS DE TEXTO
+# ─────────────────────────────────────────────────────────────
+
+def _quebrar_texto(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list:
+    """Quebra texto em linhas para caber em max_px de largura."""
     palavras = texto.split()
     linhas = []
     linha_atual = ""
-
     for palavra in palavras:
         candidato = (linha_atual + " " + palavra).strip()
         bbox = fonte.getbbox(candidato)
-        largura = bbox[2] - bbox[0]
-        if largura <= max_px:
+        if (bbox[2] - bbox[0]) <= max_px:
             linha_atual = candidato
         else:
             if linha_atual:
                 linhas.append(linha_atual)
+            # Trunca palavra que sozinha excede o limite
+            while True:
+                bbox_p = fonte.getbbox(palavra)
+                if (bbox_p[2] - bbox_p[0]) <= max_px or len(palavra) <= 3:
+                    break
+                palavra = palavra[:-1]
             linha_atual = palavra
     if linha_atual:
         linhas.append(linha_atual)
-
     return linhas
+
+
+def _limpar_emojis(texto: str) -> str:
+    """Remove emojis que não renderizam corretamente em DejaVu/Liberation."""
+    import unicodedata
+    resultado = []
+    for ch in texto:
+        cat = unicodedata.category(ch)
+        cp = ord(ch)
+        # Mantém ASCII, latim estendido, pontuação comum, letras acentuadas
+        if cp < 0x2000 or cat.startswith("L") or cat.startswith("N") or cat in ("Po", "Pd", "Ps", "Pe", "Pc"):
+            resultado.append(ch)
+        else:
+            resultado.append(" ")
+    # Une os chars sem separador, depois colapsa espaços duplos
+    return " ".join("".join(resultado).split())
 
 
 def _renderizar_texto_multilinha(
     draw: "ImageDraw.ImageDraw",
-    linhas: list[str],
+    linhas: list,
     fonte: "ImageFont.FreeTypeFont",
     x: int,
     y_inicio: int,
@@ -140,347 +185,319 @@ def _renderizar_texto_multilinha(
     largura_canvas: int = 1080,
     espacamento: int = 8,
 ) -> int:
-    """Renderiza linhas de texto. Retorna Y final."""
+    """Renderiza linhas de texto. Retorna Y após última linha."""
     y = y_inicio
     for linha in linhas:
         bbox = fonte.getbbox(linha)
-        larg_texto = bbox[2] - bbox[0]
-        alt_texto = bbox[3] - bbox[1]
-        x_pos = (largura_canvas - larg_texto) // 2 if centralizar else x
+        larg = bbox[2] - bbox[0]
+        alt = bbox[3] - bbox[1]
+        x_pos = (largura_canvas - larg) // 2 if centralizar else x
         draw.text((x_pos, y), linha, font=fonte, fill=cor)
-        y += alt_texto + espacamento
+        y += alt + espacamento
     return y
 
 
 def _desenhar_botao_cta(
-    img: "Image.Image",
     draw: "ImageDraw.ImageDraw",
     texto: str,
     y_centro: int,
     cor_fundo: tuple,
     cor_texto: tuple,
+    cor_sombra: tuple,
     largura_canvas: int = 1080,
 ) -> None:
-    """Desenha botão CTA arredondado centralizado."""
-    fonte = _carregar_fonte(34, negrito=True)
+    """Desenha botão CTA arredondado centralizado com sombra sólida."""
+    texto = _limpar_emojis(texto)
+    fonte = _carregar_fonte(36, negrito=True)
     bbox = fonte.getbbox(texto)
     larg_texto = bbox[2] - bbox[0]
-    alt_texto = bbox[3] - bbox[1]
+    alt_linha = bbox[3] - bbox[1]
+    offset_baseline = bbox[1]  # distância do topo até a baseline visual
 
-    padding_h = 60
-    padding_v = 24
+    padding_h = 64
+    padding_v = 22
     larg_botao = larg_texto + padding_h * 2
-    alt_botao = alt_texto + padding_v * 2
+    alt_botao = alt_linha + padding_v * 2
 
     x0 = (largura_canvas - larg_botao) // 2
     y0 = y_centro - alt_botao // 2
     x1 = x0 + larg_botao
     y1 = y0 + alt_botao
 
-    # Sombra sutil
-    sombra_offset = 4
-    draw.rounded_rectangle(
-        [x0 + sombra_offset, y0 + sombra_offset, x1 + sombra_offset, y1 + sombra_offset],
-        radius=40,
-        fill=(0, 0, 0, 80) if img.mode == "RGBA" else (0, 0, 0),
-    )
-
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=40, fill=cor_fundo)
-
-    x_texto = x0 + padding_h
-    y_texto = y0 + padding_v
+    # Sombra sólida (offset de 5px) — funciona em RGB sem alpha
+    s = 5
+    draw.rounded_rectangle([x0 + s, y0 + s, x1 + s, y1 + s], radius=42, fill=cor_sombra)
+    # Botão principal
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=42, fill=cor_fundo)
+    # Texto centralizado vertical e horizontalmente
+    x_texto = x0 + (larg_botao - larg_texto) // 2
+    y_texto = y0 + padding_v - offset_baseline
     draw.text((x_texto, y_texto), texto, font=fonte, fill=cor_texto)
 
 
-def _watermark(draw: "ImageDraw.ImageDraw", largura: int, altura: int) -> None:
-    """Watermark DarkCred discreto no rodapé."""
+def _watermark(
+    img: "Image.Image",
+    draw: "ImageDraw.ImageDraw",
+    largura: int,
+    altura: int,
+) -> None:
+    """Watermark DarkCred discreto — cor adaptada ao fundo da imagem."""
     fonte = _carregar_fonte(22, negrito=False)
     texto = "DarkCred"
     bbox = fonte.getbbox(texto)
     larg = bbox[2] - bbox[0]
+    alt = bbox[3] - bbox[1]
     x = largura - larg - 28
-    y = altura - (bbox[3] - bbox[1]) - 20
-    draw.text((x, y), texto, font=fonte, fill=(255, 255, 255, 60) if draw._image.mode == "RGBA" else (120, 120, 120))
+    y = altura - alt - 20
+    # Usa img.mode diretamente (sem acessar draw._image)
+    cor = (200, 200, 200) if img.mode == "RGB" else (200, 200, 200, 180)
+    draw.text((x, y), texto, font=fonte, fill=cor)
 
 
 # ─────────────────────────────────────────────────────────────
-# TEMPLATES
+# TEMPLATE 1 — ESCURO MODERNO
 # ─────────────────────────────────────────────────────────────
 
 def _template_escuro(variacao: dict) -> "Image.Image":
-    """
-    Template 1 — Escuro Moderno
-    Fundo: gradiente roxo-escuro → azul-escuro
-    Acento: linha lateral laranja
-    Texto: branco/cinza claro
-    """
     W, H = TAMANHO_CANVAS
-    img = Image.new("RGB", (W, H))
+    img = _gradiente_diagonal_img(CORES["roxo_escuro"], CORES["azul_escuro"], W, H)
     draw = ImageDraw.Draw(img)
 
-    # Gradiente diagonal
-    _gradiente_diagonal(draw, CORES["roxo_escuro"], CORES["azul_escuro"], W, H)
+    # Acento lateral laranja
+    draw.rectangle([0, 0, 7, H], fill=CORES["laranja"])
+    # Linha topo
+    draw.rectangle([0, 0, W, 7], fill=CORES["laranja"])
 
-    # Linha lateral esquerda (acento laranja)
-    draw.rectangle([0, 0, 6, H], fill=CORES["laranja"])
+    hook  = _limpar_emojis(variacao.get("hook", ""))
+    corpo = _limpar_emojis(variacao.get("corpo", variacao.get("body", "")))
+    cta   = variacao.get("cta", "Chama no direct")
 
-    # Bloco superior sutil
-    draw.rectangle([0, 0, W, 8], fill=(*CORES["laranja"], 180))
-
-    hook = variacao.get("hook", "")
-    corpo = variacao.get("corpo", variacao.get("body", ""))
-    cta = variacao.get("cta", "Chama no direct 📩")
-
-    # Fonte hook grande
-    fonte_hook = _carregar_fonte(66, negrito=True)
+    fonte_hook  = _carregar_fonte(66, negrito=True)
     fonte_corpo = _carregar_fonte(36, negrito=False)
-
-    margem = 70
+    margem = 72
     max_larg = W - margem * 2
 
-    linhas_hook = _quebrar_texto(hook, fonte_hook, max_larg)
+    linhas_hook  = _quebrar_texto(hook,  fonte_hook,  max_larg)
     linhas_corpo = _quebrar_texto(corpo, fonte_corpo, max_larg)
 
-    # Calcula altura total do bloco de texto
-    alt_linha_hook = 66 + 12
-    alt_linha_corpo = 36 + 10
-    alt_total = len(linhas_hook) * alt_linha_hook + 40 + len(linhas_corpo) * alt_linha_corpo + 80 + 70
-    y_inicio = (H - alt_total) // 2
-
-    # Renderiza hook
-    y_atual = _renderizar_texto_multilinha(
-        draw, linhas_hook, fonte_hook,
-        x=margem, y_inicio=y_inicio,
-        cor=CORES["branco"],
-        centralizar=True, largura_canvas=W, espacamento=12,
+    alt_hook_bloco  = sum(
+        fonte_hook.getbbox(l)[3] - fonte_hook.getbbox(l)[1] + 14
+        for l in linhas_hook
     )
+    alt_corpo_bloco = sum(
+        fonte_corpo.getbbox(l)[3] - fonte_corpo.getbbox(l)[1] + 10
+        for l in linhas_corpo
+    )
+    alt_total = alt_hook_bloco + 52 + alt_corpo_bloco + 90 + 70
+    y = max(60, (H - alt_total) // 2)
 
+    y = _renderizar_texto_multilinha(
+        draw, linhas_hook, fonte_hook, margem, y,
+        CORES["branco"], centralizar=True, largura_canvas=W, espacamento=14,
+    )
     # Separador
-    y_atual += 30
-    sep_larg = 80
-    draw.rectangle(
-        [(W - sep_larg) // 2, y_atual, (W + sep_larg) // 2, y_atual + 3],
-        fill=CORES["laranja"],
+    y += 22
+    sep = 90
+    draw.rectangle([(W - sep) // 2, y, (W + sep) // 2, y + 5], fill=CORES["laranja"])
+    y += 26
+
+    y = _renderizar_texto_multilinha(
+        draw, linhas_corpo, fonte_corpo, margem, y,
+        CORES["cinza_claro"], centralizar=True, largura_canvas=W, espacamento=10,
     )
-    y_atual += 22
-
-    # Renderiza corpo
-    y_atual = _renderizar_texto_multilinha(
-        draw, linhas_corpo, fonte_corpo,
-        x=margem, y_inicio=y_atual,
-        cor=CORES["cinza_claro"],
-        centralizar=True, largura_canvas=W, espacamento=10,
-    )
-
-    # Botão CTA
-    y_atual += 48
-    _desenhar_botao_cta(img, draw, cta, y_atual + 35, CORES["laranja"], CORES["branco"])
-
-    _watermark(draw, W, H)
+    y += 52
+    _desenhar_botao_cta(draw, cta, y + 36, CORES["laranja"], CORES["branco"], CORES["laranja_sombra"])
+    _watermark(img, draw, W, H)
     return img
 
 
+# ─────────────────────────────────────────────────────────────
+# TEMPLATE 2 — CLARO IMPACTO
+# ─────────────────────────────────────────────────────────────
+
 def _template_claro(variacao: dict) -> "Image.Image":
-    """
-    Template 2 — Claro Impacto
-    Fundo: branco
-    Bloco topo: laranja com hook branco
-    Corpo: texto escuro
-    """
     W, H = TAMANHO_CANVAS
     img = Image.new("RGB", (W, H), CORES["branco"])
     draw = ImageDraw.Draw(img)
 
-    hook = variacao.get("hook", "")
-    corpo = variacao.get("corpo", variacao.get("body", ""))
-    cta = variacao.get("cta", "Chama no direct 📩")
+    ALTURA_BLOCO = 390
 
-    ALTURA_BLOCO = 400
-    # Bloco laranja (topo)
-    draw.rectangle([0, 0, W, ALTURA_BLOCO], fill=CORES["laranja"])
+    # Bloco laranja com gradiente sutil
+    bloco = _gradiente_vertical_img(CORES["laranja"], (220, 85, 35), W, ALTURA_BLOCO)
+    img.paste(bloco, (0, 0))
+    draw = ImageDraw.Draw(img)
 
-    # Linha decorativa branca no rodapé do bloco laranja
-    draw.rectangle([0, ALTURA_BLOCO - 6, W, ALTURA_BLOCO], fill=CORES["branco"])
+    # Linha branca no rodapé do bloco
+    draw.rectangle([0, ALTURA_BLOCO - 7, W, ALTURA_BLOCO], fill=CORES["branco"])
 
-    fonte_hook = _carregar_fonte(60, negrito=True)
+    hook  = _limpar_emojis(variacao.get("hook", ""))
+    corpo = _limpar_emojis(variacao.get("corpo", variacao.get("body", "")))
+    cta   = variacao.get("cta", "Chama no direct")
+
+    fonte_hook  = _carregar_fonte(60, negrito=True)
     fonte_corpo = _carregar_fonte(36, negrito=False)
-
     margem = 64
     max_larg = W - margem * 2
 
-    linhas_hook = _quebrar_texto(hook, fonte_hook, max_larg)
+    linhas_hook  = _quebrar_texto(hook,  fonte_hook,  max_larg)
     linhas_corpo = _quebrar_texto(corpo, fonte_corpo, max_larg)
 
-    # Centraliza hook no bloco laranja
-    alt_hook_total = len(linhas_hook) * (60 + 14)
-    y_hook = (ALTURA_BLOCO - alt_hook_total) // 2
-
+    # Centraliza hook na área laranja
+    alt_hook_bloco = sum(
+        fonte_hook.getbbox(l)[3] - fonte_hook.getbbox(l)[1] + 14
+        for l in linhas_hook
+    )
+    y_hook = max(24, (ALTURA_BLOCO - alt_hook_bloco) // 2)
     _renderizar_texto_multilinha(
-        draw, linhas_hook, fonte_hook,
-        x=margem, y_inicio=y_hook,
-        cor=CORES["branco"],
-        centralizar=True, largura_canvas=W, espacamento=14,
+        draw, linhas_hook, fonte_hook, margem, y_hook,
+        CORES["branco"], centralizar=True, largura_canvas=W, espacamento=14,
     )
 
     # Corpo na área branca
-    y_corpo = ALTURA_BLOCO + 52
-    y_atual = _renderizar_texto_multilinha(
-        draw, linhas_corpo, fonte_corpo,
-        x=margem, y_inicio=y_corpo,
-        cor=CORES["preto_suave"],
-        centralizar=True, largura_canvas=W, espacamento=12,
+    y = ALTURA_BLOCO + 56
+    y = _renderizar_texto_multilinha(
+        draw, linhas_corpo, fonte_corpo, margem, y,
+        CORES["preto_suave"], centralizar=True, largura_canvas=W, espacamento=12,
     )
+    y += 52
+    _desenhar_botao_cta(draw, cta, y + 36, CORES["preto_suave"], CORES["branco"], (80, 80, 80))
 
-    # Botão CTA escuro
-    y_atual += 48
-    _desenhar_botao_cta(img, draw, cta, y_atual + 35, CORES["preto_suave"], CORES["branco"])
-
-    # Watermark escuro
+    # Watermark discreta
     fonte_wm = _carregar_fonte(22, negrito=False)
-    wm_texto = "DarkCred"
-    bbox = fonte_wm.getbbox(wm_texto)
-    draw.text((W - (bbox[2] - bbox[0]) - 28, H - (bbox[3] - bbox[1]) - 20), wm_texto, font=fonte_wm, fill=(180, 180, 180))
-
-    return img
-
-
-def _template_verde(variacao: dict) -> "Image.Image":
-    """
-    Template 3 — Comerciante Direto
-    Fundo: gradiente verde-escuro brasileiro
-    Hook: amarelo-dourado, corpo branco
-    """
-    W, H = TAMANHO_CANVAS
-    img = Image.new("RGB", (W, H))
-    draw = ImageDraw.Draw(img)
-
-    _gradiente_vertical(draw, CORES["verde_escuro"], CORES["verde_medio"], W, H)
-
-    # Elementos decorativos (círculos sutis no canto)
-    draw.ellipse([W - 220, -80, W + 80, 220], outline=(*CORES["dourado"][:3], 30), width=2)
-    draw.ellipse([W - 160, -20, W + 20, 160], outline=(*CORES["dourado"][:3], 20), width=1)
-
-    hook = variacao.get("hook", "")
-    corpo = variacao.get("corpo", variacao.get("body", ""))
-    cta = variacao.get("cta", "Chama no direct 📩")
-
-    fonte_hook = _carregar_fonte(64, negrito=True)
-    fonte_corpo = _carregar_fonte(36, negrito=False)
-
-    margem = 70
-    max_larg = W - margem * 2
-
-    linhas_hook = _quebrar_texto(hook, fonte_hook, max_larg)
-    linhas_corpo = _quebrar_texto(corpo, fonte_corpo, max_larg)
-
-    alt_linha_hook = 64 + 14
-    alt_linha_corpo = 36 + 10
-    alt_total = len(linhas_hook) * alt_linha_hook + 50 + len(linhas_corpo) * alt_linha_corpo + 80 + 70
-    y_inicio = (H - alt_total) // 2
-
-    y_atual = _renderizar_texto_multilinha(
-        draw, linhas_hook, fonte_hook,
-        x=margem, y_inicio=y_inicio,
-        cor=CORES["dourado"],
-        centralizar=True, largura_canvas=W, espacamento=14,
+    wm = "DarkCred"
+    bbox = fonte_wm.getbbox(wm)
+    draw.text(
+        (W - (bbox[2] - bbox[0]) - 28, H - (bbox[3] - bbox[1]) - 20),
+        wm, font=fonte_wm, fill=(180, 180, 180),
     )
-
-    y_atual += 38
-    draw.rectangle([margem, y_atual, W - margem, y_atual + 2], fill=(*CORES["dourado"][:3], 80))
-    y_atual += 22
-
-    y_atual = _renderizar_texto_multilinha(
-        draw, linhas_corpo, fonte_corpo,
-        x=margem, y_inicio=y_atual,
-        cor=CORES["branco_suave"],
-        centralizar=True, largura_canvas=W, espacamento=10,
-    )
-
-    y_atual += 50
-    _desenhar_botao_cta(img, draw, cta, y_atual + 35, CORES["dourado"], CORES["preto_suave"])
-
-    _watermark(draw, W, H)
     return img
 
 
 # ─────────────────────────────────────────────────────────────
-# PONTO DE ENTRADA PRINCIPAL
+# TEMPLATE 3 — COMERCIANTE DIRETO
+# ─────────────────────────────────────────────────────────────
+
+def _template_verde(variacao: dict) -> "Image.Image":
+    W, H = TAMANHO_CANVAS
+    img = _gradiente_vertical_img(CORES["verde_escuro"], CORES["verde_medio"], W, H)
+    draw = ImageDraw.Draw(img)
+
+    # Decoração: arcos dourados no canto superior direito
+    draw.arc([W - 210, -90, W + 70, 210],  start=140, end=260, fill=(180, 140, 0), width=3)
+    draw.arc([W - 150, -30, W + 10, 150],  start=145, end=255, fill=(150, 115, 0), width=2)
+
+    # Linha decorativa inferior
+    draw.rectangle([40, H - 12, W - 40, H - 8], fill=(180, 140, 0))
+
+    hook  = _limpar_emojis(variacao.get("hook", ""))
+    corpo = _limpar_emojis(variacao.get("corpo", variacao.get("body", "")))
+    cta   = variacao.get("cta", "Chama no direct")
+
+    fonte_hook  = _carregar_fonte(64, negrito=True)
+    fonte_corpo = _carregar_fonte(36, negrito=False)
+    margem = 72
+    max_larg = W - margem * 2
+
+    linhas_hook  = _quebrar_texto(hook,  fonte_hook,  max_larg)
+    linhas_corpo = _quebrar_texto(corpo, fonte_corpo, max_larg)
+
+    alt_hook_bloco  = sum(
+        fonte_hook.getbbox(l)[3] - fonte_hook.getbbox(l)[1] + 14
+        for l in linhas_hook
+    )
+    alt_corpo_bloco = sum(
+        fonte_corpo.getbbox(l)[3] - fonte_corpo.getbbox(l)[1] + 10
+        for l in linhas_corpo
+    )
+    alt_total = alt_hook_bloco + 52 + alt_corpo_bloco + 90 + 70
+    y = max(60, (H - alt_total) // 2)
+
+    y = _renderizar_texto_multilinha(
+        draw, linhas_hook, fonte_hook, margem, y,
+        CORES["dourado"], centralizar=True, largura_canvas=W, espacamento=14,
+    )
+    y += 24
+    draw.rectangle([margem, y, W - margem, y + 3], fill=(180, 140, 0))
+    y += 28
+
+    y = _renderizar_texto_multilinha(
+        draw, linhas_corpo, fonte_corpo, margem, y,
+        CORES["branco_suave"], centralizar=True, largura_canvas=W, espacamento=10,
+    )
+    y += 52
+    _desenhar_botao_cta(draw, cta, y + 36, CORES["dourado"], CORES["preto_suave"], CORES["dourado_sombra"])
+    _watermark(img, draw, W, H)
+    return img
+
+
+# ─────────────────────────────────────────────────────────────
+# PONTO DE ENTRADA
 # ─────────────────────────────────────────────────────────────
 
 _TEMPLATES = {1: _template_escuro, 2: _template_claro, 3: _template_verde}
+
+_VARIACAO_PREVIEW = {
+    "hook":  "Precisa de giro pro seu negocio?",
+    "corpo": "Comerciante que e comerciante sabe o que e aperto. A DarkCred esta aqui pra dar forca no caixa quando voce mais precisa. Sem burocracia.",
+    "cta":   "Chama no direct",
+}
 
 
 def gerar_criativo(
     variacao: dict,
     segmento_key: str = "generico",
-    template: int | None = None,
-    fundo_ia: str | None = None,
+    template: Optional[int] = None,
+    fundo_ia: Optional[str] = None,
 ) -> str:
     """
     Gera imagem PNG 1080x1080 para o criativo.
 
     Args:
-        variacao:     Dict com hook, corpo, cta, full_copy
+        variacao:     Dict com hook, corpo/body, cta
         segmento_key: Chave do segmento (para nome do arquivo)
-        template:     1, 2 ou 3. None = aleatório
-        fundo_ia:     Caminho para imagem de fundo gerada por IA (nano-banana)
+        template:     1, 2 ou 3 — None = aleatório
+        fundo_ia:     Caminho para fundo gerado por IA (nano-banana)
 
     Returns:
         Caminho absoluto do PNG salvo.
-
-    Raises:
-        RuntimeError: Se Pillow não estiver instalado.
     """
     if not PILLOW_DISPONIVEL:
-        raise RuntimeError(
-            "Pillow não está instalado. Execute: pip install Pillow"
-        )
+        raise RuntimeError("Pillow não está instalado. Execute: pip install Pillow")
 
     DIRETORIO_SAIDA.mkdir(parents=True, exist_ok=True)
+    num = template if template in _TEMPLATES else random.randint(1, 3)
+    img = _TEMPLATES[num](variacao)
 
-    num_template = template if template in _TEMPLATES else random.randint(1, 3)
-    fn_template = _TEMPLATES[num_template]
-
-    img = fn_template(variacao)
-
-    # Aplica fundo de IA se fornecido (sobrepõe o fundo Pillow)
     if fundo_ia and Path(fundo_ia).exists():
         try:
             fundo = Image.open(fundo_ia).convert("RGB").resize(TAMANHO_CANVAS)
-            # Mistura: 60% fundo IA + texto do template (recria com alpha)
-            img_texto = fn_template(variacao).convert("RGBA")
             fundo_rgba = fundo.convert("RGBA")
-            # Overlay semi-transparente sobre o fundo IA para legibilidade
-            overlay = Image.new("RGBA", TAMANHO_CANVAS, (0, 0, 0, 140))
+            overlay = Image.new("RGBA", TAMANHO_CANVAS, (0, 0, 0, 150))
             fundo_escurecido = Image.alpha_composite(fundo_rgba, overlay)
-            # Desenha apenas os textos sobre o fundo IA escurecido
-            img = Image.alpha_composite(fundo_escurecido, img_texto).convert("RGB")
+            img_rgba = _TEMPLATES[num](variacao).convert("RGBA")
+            img = Image.alpha_composite(fundo_escurecido, img_rgba).convert("RGB")
         except Exception:
-            pass  # Se falhar, usa o template Pillow original
+            try:
+                from alina.logger import log
+                log.warning("Falha ao aplicar fundo IA — usando template Pillow puro")
+            except Exception:
+                pass
 
-    # Nome do arquivo
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    nome = f"alina_{segmento_key}_{ts}_t{num_template}.png"
+    nome = f"alina_{segmento_key}_{ts}_t{num}.png"
     caminho = DIRETORIO_SAIDA / nome
     img.save(str(caminho), format="PNG", optimize=True)
-
     return str(caminho)
 
 
 def gerar_criativos_para_variacoes(
-    variacoes: list[dict],
+    variacoes: list,
     segmento_key: str = "generico",
-    template: int | None = None,
+    template: Optional[int] = None,
     usar_ia: bool = False,
-) -> list[str]:
+) -> list:
     """
     Gera imagens para uma lista de variações aprovadas.
-
-    Args:
-        variacoes:    Lista de dicts aprovados pelo validador
-        segmento_key: Chave do segmento
-        template:     Forçar template específico (None = aleatório por imagem)
-        usar_ia:      Tentar gerar fundo com nano-banana-2
 
     Returns:
         Lista de caminhos dos PNGs gerados.
@@ -488,9 +505,7 @@ def gerar_criativos_para_variacoes(
     if not PILLOW_DISPONIVEL:
         raise RuntimeError("Pillow não está instalado. Execute: pip install Pillow")
 
-    caminhos = []
     fundo_ia = None
-
     if usar_ia:
         try:
             from alina.nano_banana import gerar_fundo_ia, verificar_infsh_disponivel
@@ -499,10 +514,62 @@ def gerar_criativos_para_variacoes(
         except Exception:
             pass
 
+    caminhos = []
     for i, var in enumerate(variacoes):
-        # Alterna template se não forçado
         num = template if template else ((i % 3) + 1)
         caminho = gerar_criativo(var, segmento_key, template=num, fundo_ia=fundo_ia)
         caminhos.append(caminho)
-
     return caminhos
+
+
+def gerar_previews_templates() -> list:
+    """
+    Gera 3 PNGs de preview (um por template) com copy fictício.
+    Útil para o usuário visualizar os layouts sem precisar gerar copies reais.
+
+    Returns:
+        Lista com 3 caminhos de PNGs.
+    """
+    if not PILLOW_DISPONIVEL:
+        raise RuntimeError("Pillow não está instalado. Execute: pip install Pillow")
+
+    DIRETORIO_SAIDA.mkdir(parents=True, exist_ok=True)
+    caminhos = []
+    for num in [1, 2, 3]:
+        img = _TEMPLATES[num](_VARIACAO_PREVIEW)
+        nome = f"preview_template_{num}.png"
+        caminho = DIRETORIO_SAIDA / nome
+        img.save(str(caminho), format="PNG", optimize=True)
+        caminhos.append(str(caminho))
+    return caminhos
+
+
+def regenerar_imagens_de_json(caminho_json: str, template: Optional[int] = None) -> list:
+    """
+    Lê um JSON de saída salvo e gera novas imagens para os copies nele contidos.
+
+    Args:
+        caminho_json: Caminho para arquivo JSON gerado por salvar_saida()
+        template:     Template a usar (None = aleatório)
+
+    Returns:
+        Lista de caminhos dos PNGs gerados.
+    """
+    import json
+
+    if not PILLOW_DISPONIVEL:
+        raise RuntimeError("Pillow não está instalado. Execute: pip install Pillow")
+
+    p = Path(caminho_json)
+    if not p.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {caminho_json}")
+
+    with open(p, encoding="utf-8") as f:
+        dados = json.load(f)
+
+    variacoes = dados.get("variacoes", [])
+    if not variacoes:
+        raise ValueError(f"Nenhuma variação encontrada em {caminho_json}")
+
+    segmento = dados.get("segmento", "generico")
+    return gerar_criativos_para_variacoes(variacoes, segmento_key=segmento, template=template)
