@@ -1,16 +1,17 @@
 """
 Gerador de Imagens com IA — Alina Pretrov
-GPT-image-1 quality="high" (teto da OpenAI) + composição profissional com Poppins.
+GPT-image-1 quality="high" + composição multi-camada inspirada nas referências reais.
 
-Design:
-- Fundo 1024×1024 nativo (sem upscale)
-- Painel escuro no terço inferior + gradiente de transição acima
-- Hook em LARANJA (#FF6B35), Poppins Bold 78px
-- Corpo em BRANCO, Poppins SemiBold 40px
-- Sombra de texto em 4 offsets
-- Botão CTA laranja grande
+Design (7 camadas):
+  1. Fundo fotorrealista 1024×1024 (comerciante + moedas/notas + loja)
+  2. Overlay gradiente azul naval (não preto puro) — começa em 35% da altura
+  3. Headline LARANJA em Poppins Bold 72px
+  4. Badge pílula azul "SEM BUROCRACIA" em amarelo
+  5. Card branco arredondado com corpo em cinza escuro
+  6. Botão CTA dourado/amarelo — "DINHEIRO NA CONTA HOJE!"
+  7. Botão WhatsApp verde — CTA secundário
 
-Saída: PNG 1024×1024 sem marca d'água, sem logo, pronto para Meta Ads.
+Saída: PNG 1024×1024 sem marca d'água, pronto para Meta Ads.
 """
 
 import base64
@@ -32,7 +33,7 @@ except ImportError:
     OPENAI_SDK_DISPONIVEL = False
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
     import io as _io
     PILLOW_DISPONIVEL = True
 except ImportError:
@@ -48,10 +49,19 @@ except ImportError:
 DIRETORIO_SAIDA = Path("saidas/imagens")
 ASSETS_FONTS    = Path(__file__).parent.parent / "assets" / "fonts"
 
-LARANJA   = (255, 107, 53)
-LARANJA_E = (190, 65, 15)
-BRANCO    = (255, 255, 255)
-SOMBRA    = (0, 0, 0)
+# Paleta de cores — inspirada nas referências reais
+LARANJA      = (255, 107,  53)   # hook headline
+LARANJA_E    = (190,  65,  15)   # sombra do hook
+DOURADO      = (255, 210,   0)   # badge + CTA primário
+DOURADO_E    = (180, 140,   0)   # sombra do CTA dourado
+NAVY         = ( 13,  27,  75)   # overlay azul naval
+AZUL_BADGE   = ( 20,  60, 160)   # fundo do badge pílula
+VERDE_WP     = ( 37, 211, 102)   # botão WhatsApp
+VERDE_WP_E   = ( 18, 130,  60)   # sombra WhatsApp
+BRANCO       = (255, 255, 255)
+CINZA_TEXTO  = ( 30,  30,  30)   # texto no card branco
+SOMBRA       = (  0,   0,   0)
+
 
 # ─────────────────────────────────────────────────────────────
 # FONTS — Poppins com fallback
@@ -96,14 +106,14 @@ def _limpar(texto: str) -> str:
         cp = ord(ch)
         cat = unicodedata.category(ch)
         if cp < 0x2000 or cat.startswith("L") or cat.startswith("N") \
-                or cat in ("Po","Pd","Ps","Pe","Pc","Zs"):
+                or cat in ("Po", "Pd", "Ps", "Pe", "Pc", "Zs"):
             out.append(ch)
         else:
             out.append(" ")
     return " ".join("".join(out).split())
 
 
-def _quebrar(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list[str]:
+def _quebrar(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list:
     palavras = texto.split()
     linhas, atual = [], ""
     for p in palavras:
@@ -120,160 +130,286 @@ def _quebrar(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list[s
     return linhas
 
 
+def _texto_w(texto: str, fonte: "ImageFont.FreeTypeFont") -> int:
+    bb = fonte.getbbox(texto)
+    return bb[2] - bb[0]
+
+
+def _texto_h(texto: str, fonte: "ImageFont.FreeTypeFont") -> int:
+    bb = fonte.getbbox(texto)
+    return bb[3] - bb[1]
+
+
 def _draw_sombra(draw, x, y, texto, fonte, cor, sombra=SOMBRA, offset=2):
-    """Sombra em 4 offsets diagonais para simular profundidade sem blur."""
-    for dx, dy in [(-offset,-offset),(offset,-offset),(-offset,offset),(offset,offset)]:
-        draw.text((x+dx, y+dy), texto, font=fonte, fill=sombra)
+    """Sombra em 4 offsets diagonais para profundidade."""
+    for dx, dy in [(-offset, -offset), (offset, -offset),
+                   (-offset,  offset), (offset,  offset)]:
+        draw.text((x + dx, y + dy), texto, font=fonte, fill=sombra)
+    draw.text((x, y), texto, font=fonte, fill=cor)
+
+
+def _draw_sombra_suave(draw, x, y, texto, fonte, cor, sombra=SOMBRA, blur=6):
+    """Sombra via múltiplos offsets para simular blur — mais suave."""
+    for dx, dy, op in [(-3, -3, 80), (3, -3, 80), (-3, 3, 80), (3, 3, 80),
+                       (-5, -5, 40), (5, -5, 40), (-5, 5, 40), (5, 5, 40)]:
+        s = (*sombra, op)
+        draw.text((x + dx, y + dy), texto, font=fonte, fill=s)
     draw.text((x, y), texto, font=fonte, fill=cor)
 
 
 # ─────────────────────────────────────────────────────────────
-# OVERLAY — painel escuro no terço inferior com gradiente de transição
+# CAMADA 2 — Overlay azul naval com gradiente de transição
 # ─────────────────────────────────────────────────────────────
 
-def _overlay_painel(img: "Image.Image") -> "Image.Image":
+def _overlay_naval(img: "Image.Image") -> "Image.Image":
     """
-    Preserva foto no topo. Escurece progressivamente a partir de 40% da altura
-    até opacidade ~195/255 no rodapé — área limpa para o texto.
+    Overlay com gradiente azul naval (#0D1B4B).
+    Preserva foto no topo; escurece com cor navy do meio para baixo.
     """
     W, H = img.size
-    base = img.convert("RGBA")
+    base    = img.convert("RGBA")
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
+    draw    = ImageDraw.Draw(overlay)
 
-    inicio_transicao = int(H * 0.38)
-    fim_transicao    = int(H * 0.58)
-    opacidade_painel = 195
+    inicio = int(H * 0.32)   # começa a transição em 32% da altura
+    fim    = int(H * 0.56)   # navy sólido a partir de 56%
+    opac   = 215              # opacidade do navy sólido
+
+    r, g, b = NAVY
 
     # Gradiente de transição
-    for y in range(inicio_transicao, fim_transicao):
-        progresso = (y - inicio_transicao) / max(fim_transicao - inicio_transicao, 1)
-        a = int(opacidade_painel * progresso)
-        draw.line([(0, y), (W, y)], fill=(0, 0, 0, a))
+    faixa = fim - inicio
+    for y in range(inicio, fim):
+        t = (y - inicio) / max(faixa, 1)
+        a = int(opac * t)
+        draw.line([(0, y), (W, y)], fill=(r, g, b, a))
 
-    # Painel sólido abaixo da transição
-    draw.rectangle([0, fim_transicao, W, H], fill=(0, 0, 0, opacidade_painel))
+    # Bloco sólido navy abaixo da transição
+    draw.rectangle([0, fim, W, H], fill=(r, g, b, opac))
 
     return Image.alpha_composite(base, overlay).convert("RGB")
 
 
 # ─────────────────────────────────────────────────────────────
-# COMPOSIÇÃO DE TEXTO
+# CAMADAS 3-7 — Composição de texto multi-camada
 # ─────────────────────────────────────────────────────────────
 
-def _botao_cta(draw: "ImageDraw.ImageDraw", texto: str, y_centro: int, W: int):
-    f   = _fonte(38, "bold")
-    bb  = f.getbbox(texto)
-    tw  = bb[2] - bb[0]
-    th  = bb[3] - bb[1]
-    ph, pv = 70, 24
+def _desenhar_badge_pilula(draw: "ImageDraw.ImageDraw", texto: str,
+                            y_centro: int, W: int):
+    """Camada 4 — Badge pílula azul escuro com texto amarelo."""
+    f   = _fonte(32, "bold")
+    tw  = _texto_w(texto, f)
+    th  = _texto_h(texto, f) + 6
+    ph, pv = 50, 14
     bw  = tw + ph * 2
     bh  = th + pv * 2
     x0  = (W - bw) // 2
     y0  = y_centro - bh // 2
-    x1, y1 = x0 + bw, y0 + bh
-    r   = 48
+    x1  = x0 + bw
+    y1  = y0 + bh
+    r   = bh // 2  # pílula perfeita
 
-    # Sombra sólida
-    draw.rounded_rectangle([x0+4, y0+5, x1+4, y1+5], radius=r, fill=LARANJA_E)
-    # Botão
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=r, fill=LARANJA)
-    # Texto
-    xt = x0 + (bw - tw) // 2
+    # Sombra da pílula
+    draw.rounded_rectangle([x0 + 3, y0 + 4, x1 + 3, y1 + 4],
+                            radius=r, fill=(0, 0, 0, 100))
+    # Fundo azul
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=r, fill=AZUL_BADGE)
+    # Borda brilhante
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=r, outline=DOURADO, width=2)
+
+    bb = f.getbbox(texto)
+    xt = x0 + ph - bb[0]
     yt = y0 + pv - bb[1]
-    draw.text((xt, yt), texto, font=f, fill=BRANCO)
+    draw.text((xt, yt), texto, font=f, fill=DOURADO)
+
+    return bh
+
+
+def _desenhar_card_info(draw: "ImageDraw.ImageDraw", linhas: list,
+                         fonte: "ImageFont.FreeTypeFont",
+                         y_topo: int, W: int,
+                         margem_lateral: int = 72) -> int:
+    """Camada 5 — Card branco arredondado com texto cinza escuro."""
+    if not linhas:
+        return y_topo
+
+    espacamento = 12
+    alturas = [_texto_h(l, fonte) for l in linhas]
+    h_texto = sum(alturas) + espacamento * (len(linhas) - 1)
+    ph, pv  = 48, 22
+    bw      = W - margem_lateral * 2
+    bh      = h_texto + pv * 2
+    x0      = margem_lateral
+    y0      = y_topo
+    x1      = x0 + bw
+    y1      = y0 + bh
+
+    # Sombra do card
+    draw.rounded_rectangle([x0 + 3, y0 + 5, x1 + 3, y1 + 5],
+                            radius=18, fill=(0, 0, 0, 90))
+    # Fundo branco
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=18, fill=(255, 255, 255, 240))
+
+    # Texto centralizado linha a linha
+    y_txt = y0 + pv
+    for i, linha in enumerate(linhas):
+        bb = fonte.getbbox(linha)
+        tw = bb[2] - bb[0]
+        lh = alturas[i]
+        xt = x0 + (bw - tw) // 2 - bb[0]
+        draw.text((xt, y_txt - bb[1]), linha, font=fonte, fill=CINZA_TEXTO)
+        y_txt += lh + espacamento
+
+    return bh
+
+
+def _desenhar_botao(draw: "ImageDraw.ImageDraw", texto: str,
+                     y_centro: int, W: int,
+                     cor_fundo: tuple, cor_sombra: tuple,
+                     cor_texto: tuple,
+                     icone: str = "",
+                     margem_lateral: int = 72) -> int:
+    """Camada genérica de botão CTA."""
+    f       = _fonte(38, "bold")
+    label   = (icone + " " + texto).strip() if icone else texto
+    tw      = _texto_w(label, f)
+    th      = _texto_h(label, f) + 4
+    ph, pv  = 50, 20
+    bw      = W - margem_lateral * 2
+    bh      = th + pv * 2
+    x0      = margem_lateral
+    y0      = y_centro - bh // 2
+    x1      = x0 + bw
+    y1      = y0 + bh
+    r       = bh // 2
+
+    # Sombra
+    draw.rounded_rectangle([x0 + 4, y0 + 5, x1 + 4, y1 + 5],
+                            radius=r, fill=cor_sombra)
+    # Botão
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=r, fill=cor_fundo)
+
+    bb  = f.getbbox(label)
+    xt  = x0 + (bw - tw) // 2 - bb[0]
+    yt  = y0 + pv - bb[1]
+    draw.text((xt, yt), label, font=f, fill=cor_texto)
+
+    return bh
 
 
 def _compor_texto(img: "Image.Image", variacao: dict) -> "Image.Image":
-    W, H  = img.size
-    draw  = ImageDraw.Draw(img)
+    """
+    Composição de texto multi-camada.
 
-    hook  = _limpar(variacao.get("hook", ""))
+    De baixo para cima:
+      CTA WhatsApp (verde) ← primário de resposta
+      CTA Dourado "DINHEIRO NA CONTA HOJE!" ← urgência
+      Card branco com corpo ← informação
+      Badge pílula azul "SEM BUROCRACIA" ← objeção removida
+      Hook em LARANJA ← gancho emocional
+    """
+    W, H   = img.size
+    draw   = ImageDraw.Draw(img)
+
+    hook  = _limpar(variacao.get("hook",  ""))
     corpo = _limpar(variacao.get("corpo", variacao.get("body", "")))
     cta   = variacao.get("cta", "Manda uma mensagem agora")
 
-    f_hook  = _fonte(78, "bold")
-    f_corpo = _fonte(40, "semibold")
+    f_hook  = _fonte(72, "bold")
+    f_corpo = _fonte(34, "semibold")
 
-    margem   = 72
-    max_larg = W - margem * 2
+    margem    = 68
+    max_larg  = W - margem * 2
+    pad_baixo = 44          # margem do rodapé
 
     linhas_hook  = _quebrar(hook,  f_hook,  max_larg)
-    linhas_corpo = _quebrar(corpo, f_corpo, max_larg)
+    linhas_corpo = _quebrar(corpo, f_corpo, max_larg - 32)  # card tem padding
 
-    # Calcula altura total do bloco de texto
-    def alt_bloco(linhas, fonte, esp):
-        return sum((fonte.getbbox(l)[3] - fonte.getbbox(l)[1]) + esp for l in linhas)
+    # — Calcula alturas dos blocos —
+    def h_bloco(linhas, fonte, esp):
+        return sum(_texto_h(l, fonte) + esp for l in linhas) - esp if linhas else 0
 
-    h_hook  = alt_bloco(linhas_hook,  f_hook,  18)
-    h_sep   = 5 + 28 + 28          # separador + margens
-    h_corpo = alt_bloco(linhas_corpo, f_corpo, 14)
-    h_btn   = 90
-    h_total = h_hook + h_sep + h_corpo + 56 + h_btn
+    h_hook     = h_bloco(linhas_hook, f_hook, 16)
+    h_badge    = 60    # pílula
+    h_card     = max(h_bloco(linhas_corpo, f_corpo, 12) + 44, 0)  # card c/ padding
+    h_cta_ouro = 72
+    h_cta_wp   = 64
+    gaps       = 18 + 18 + 22 + 16   # entre cada bloco
 
-    # Posiciona o bloco no rodapé da imagem (com padding de 48px abaixo)
-    y = H - h_total - 54
+    h_total = h_hook + gaps + h_badge + h_card + h_cta_ouro + h_cta_wp
+    y = H - h_total - pad_baixo
 
-    # — Hook em LARANJA —
+    # ── Camada 3: Hook em LARANJA ──────────────────────────────
     for linha in linhas_hook:
-        bb = f_hook.getbbox(linha)
-        lw = bb[2] - bb[0]
-        lh = bb[3] - bb[1]
-        x  = (W - lw) // 2
-        _draw_sombra(draw, x, y, linha, f_hook, LARANJA, offset=3)
-        y += lh + 18
+        tw = _texto_w(linha, f_hook)
+        th = _texto_h(linha, f_hook)
+        x  = (W - tw) // 2
+        _draw_sombra_suave(draw, x, y, linha, f_hook, LARANJA)
+        y += th + 16
 
-    # — Separador —
-    y += 14
-    sw = 72
-    draw.rounded_rectangle([(W-sw)//2, y, (W+sw)//2, y+5], radius=3, fill=LARANJA)
-    y += 5 + 22
+    y += 18
 
-    # — Corpo em BRANCO SemiBold —
-    for linha in linhas_corpo:
-        bb = f_corpo.getbbox(linha)
-        lw = bb[2] - bb[0]
-        lh = bb[3] - bb[1]
-        x  = (W - lw) // 2
-        _draw_sombra(draw, x, y, linha, f_corpo, BRANCO, offset=2)
-        y += lh + 14
+    # ── Camada 4: Badge pílula "SEM BUROCRACIA" ───────────────
+    _desenhar_badge_pilula(draw, "SEM BUROCRACIA.", y + h_badge // 2, W)
+    y += h_badge + 18
 
-    # — Botão CTA —
-    y += 44
-    _botao_cta(draw, cta, y + 36, W)
+    # ── Camada 5: Card branco com corpo ───────────────────────
+    if linhas_corpo:
+        _desenhar_card_info(draw, linhas_corpo, f_corpo, y, W, margem)
+        y += h_card + 22
+    else:
+        y += 22
+
+    # ── Camada 6: Botão CTA dourado ───────────────────────────
+    _desenhar_botao(draw, "DINHEIRO NA CONTA HOJE!",
+                    y + h_cta_ouro // 2, W,
+                    cor_fundo=DOURADO, cor_sombra=DOURADO_E,
+                    cor_texto=CINZA_TEXTO, margem_lateral=margem)
+    y += h_cta_ouro + 16
+
+    # ── Camada 7: Botão WhatsApp verde ────────────────────────
+    _desenhar_botao(draw, cta,
+                    y + h_cta_wp // 2, W,
+                    cor_fundo=VERDE_WP, cor_sombra=VERDE_WP_E,
+                    cor_texto=BRANCO, icone="",
+                    margem_lateral=margem + 20)
 
     return img
 
 
 # ─────────────────────────────────────────────────────────────
-# PROMPT DE IMAGEM (Claude → GPT-image-1)
+# PROMPT GPT-image-1 — comerciante real + moedas + navy
 # ─────────────────────────────────────────────────────────────
 
-_CENAS: dict[str, str] = {
-    "generico":   "a confident and determined Brazilian small business owner, standing at their shop, looking directly at camera",
-    "padaria":    "a Brazilian bakery owner behind the counter, fresh golden bread on warm shelves",
-    "pizzaria":   "a Brazilian pizzeria chef near a glowing pizza oven, professional kitchen",
-    "lanchonete": "a small Brazilian snack bar owner behind a colorful counter display",
-    "restaurante":"a Brazilian restaurant owner in a warmly lit dining room",
-    "acai":       "a vibrant Brazilian açaí shop attendant with colorful cups on the counter",
-    "salao":      "a Brazilian hairdresser in a modern salon with mirrors and styling chairs",
-    "barbearia":  "a Brazilian barber in a stylish barbershop with professional tools",
-    "manicure":   "a Brazilian nail technician at a bright nail salon, polish bottles on display",
-    "estetica":   "inside a clean modern Brazilian aesthetics studio with professional lighting",
-    "academia":   "a Brazilian gym owner in a well-equipped fitness studio",
-    "vestuario":  "a Brazilian clothing store owner among racks of colorful garments",
-    "mercadinho": "a Brazilian neighborhood market owner with shelves full of products",
-    "mecanico":   "a Brazilian mechanic in an auto repair shop with professional tools",
+_CENAS: dict = {
+    "generico":   "a smiling confident Brazilian small business owner wearing an apron, arms crossed, standing in their shop, upper right of frame",
+    "padaria":    "a smiling Brazilian bakery owner behind the counter, fresh golden bread on warm shelves, flour on apron",
+    "pizzaria":   "a smiling Brazilian pizzeria chef near a glowing pizza oven, tossing dough",
+    "lanchonete": "a cheerful Brazilian snack bar owner behind a colorful counter with food on display",
+    "restaurante":"a proud Brazilian restaurant owner in a warmly lit dining room, welcoming gesture",
+    "acai":       "a vibrant Brazilian açaí shop attendant smiling, colorful cups and fruits visible",
+    "salao":      "a Brazilian hairdresser in a modern salon with mirrors and styling chairs, scissors in hand",
+    "barbearia":  "a confident Brazilian barber in a stylish barbershop with professional tools and razor",
+    "manicure":   "a smiling Brazilian nail technician at a bright nail salon, nail polish bottles on display",
+    "estetica":   "a professional Brazilian aesthetics technician in a clean modern studio",
+    "academia":   "a confident Brazilian gym owner in a well-equipped fitness studio, flexing arms",
+    "vestuario":  "a smiling Brazilian clothing store owner among racks of colorful garments",
+    "mercadinho": "a proud Brazilian neighborhood market owner with shelves full of products behind them",
+    "mecanico":   "a skilled Brazilian mechanic in an auto repair shop, wiping hands on a rag, confident smile",
 }
 
 _BASE_PROMPT = (
-    "Cinematic dark commercial photography for a Brazilian Instagram ad. {cena}. "
-    "Subject positioned in the UPPER or CENTER portion of the frame — "
-    "the LOWER HALF of the image must be VERY DARK (almost black) to allow text overlay. "
-    "Dramatic warm orange and amber side lighting. Deep shadows. Bokeh background. "
-    "Ultra sharp focus on subject. Professional editorial magazine quality. "
-    "Color palette: very dark charcoal/black background, rich warm orange accent highlights. "
-    "NO text, NO logos, NO watermarks, NO readable signs. Perfect square 1:1 composition."
+    "Ultra-vibrant cinematic commercial photography for a Brazilian Instagram ad. "
+    "{cena}. "
+    "Multiple large shiny gold dollar coins floating and scattered throughout the frame. "
+    "A few fanned-out Brazilian R$100 banknotes visible. "
+    "Extremely dark NAVY BLUE (#0D1B4B) lower 50% of the frame for text overlay. "
+    "Subject in upper-right or center-right portion of frame, looking at camera with confidence. "
+    "Dramatic golden/amber rim lighting on subject. Deep rich shadows. Beautiful bokeh on store background. "
+    "Ultra sharp focus. Professional commercial ad photography. High energy, vibrant, alive. "
+    "Color palette: deep navy blue background, bright golden coins, warm amber lighting on person. "
+    "NO text, NO logos, NO watermarks, NO readable signs anywhere. Perfect square 1:1 composition. "
+    "Style: high-end Brazilian fintech advertisement, similar to Nubank and Mercado Pago ads."
 )
 
 
@@ -288,20 +424,23 @@ def _construir_prompt(variacao: dict, segmento_key: str) -> str:
         client = _anthropic_sdk.Anthropic(api_key=api_key)
         r = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=300,
+            max_tokens=350,
             system=(
-                "You are a world-class art director specializing in Instagram ads. "
+                "You are a world-class art director specializing in Brazilian fintech Instagram ads. "
                 "Write a single English image generation prompt for GPT-image-1. "
-                "CRITICAL: The lower half of the image MUST be very dark for text overlay. "
-                "Subject must be in upper/center portion. NO text, logos, or watermarks. "
-                "Output ONLY the prompt."
+                "CRITICAL requirements: "
+                "(1) The lower 50% of the image MUST be deep navy blue (#0D1B4B) for text overlay — non-negotiable. "
+                "(2) Person (merchant) must be in upper-center or upper-right portion. "
+                "(3) Include floating golden coins and R$100 bills. "
+                "(4) High energy, vibrant, alive — NOT flat or dull. "
+                "(5) NO text, logos, or watermarks. "
+                "Output ONLY the prompt, nothing else."
             ),
             messages=[{"role": "user", "content":
-                f"Hook: {variacao.get('hook','')}\n"
+                f"Hook: {variacao.get('hook', '')}\n"
                 f"Segment: {segmento_key}\n"
                 f"Base scene: {cena}\n\n"
-                "Generate a premium cinematic ad photography prompt. "
-                "Dark lower half mandatory. Orange accent lighting. Ultra quality."}],
+                "Generate a premium vibrant commercial ad photography prompt following all 5 requirements above."}],
         )
         return r.content[0].text.strip()
     except Exception:
@@ -324,7 +463,7 @@ def _gerar_fundo(prompt: str) -> bytes:
         model="gpt-image-1",
         prompt=prompt,
         size="1024x1024",
-        quality="high",     # plano mais caro / maior qualidade disponível
+        quality="high",
         n=1,
         output_format="png",
     )
@@ -341,13 +480,14 @@ def gerar_criativo_ia(
     template: Optional[int] = None,
 ) -> str:
     """
-    Gera criativo 1024×1024 com GPT-image-1 quality="high" + composição Poppins.
+    Gera criativo 1024×1024 com GPT-image-1 quality="high" + composição 7 camadas.
 
     Fluxo:
-      1. Claude escreve prompt cinematográfico (ou usa base prompt)
-      2. GPT-image-1 gera fundo fotorrealista 1024×1024 (sem upscale)
-      3. Painel escuro no terço inferior preserva foto no topo
-      4. Hook laranja + corpo branco SemiBold + botão CTA
+      1. Claude refina prompt cinematográfico (navy + pessoa + moedas)
+      2. GPT-image-1 gera fundo fotorrealista 1024×1024
+      3. Overlay azul naval substitui preto puro — preserva foto no topo
+      4. Hook LARANJA + badge azul "SEM BUROCRACIA" + card branco
+      5. Botão CTA dourado + botão WhatsApp verde
 
     Retorna caminho absoluto do PNG.
     """
@@ -356,21 +496,20 @@ def gerar_criativo_ia(
 
     DIRETORIO_SAIDA.mkdir(parents=True, exist_ok=True)
 
-    # 1. Prompt
+    # 1. Prompt refinado pelo Claude
     prompt = _construir_prompt(variacao, segmento_key)
 
     # 2. Fundo via GPT-image-1 (1024×1024 nativo, sem resize)
     raw = _gerar_fundo(prompt)
     img = Image.open(_io.BytesIO(raw)).convert("RGB")
-    # Não redimensiona — mantém qualidade nativa 1024×1024
 
-    # 3. Painel escuro para legibilidade
-    img = _overlay_painel(img)
+    # 3. Overlay azul naval (navy, não preto)
+    img = _overlay_naval(img)
 
-    # 4. Composição de texto
+    # 4. Composição multi-camada
     img = _compor_texto(img, variacao)
 
-    # 5. Salva em máxima qualidade (compress_level=1 = mínima compressão)
+    # 5. Salva em máxima qualidade
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     nome = f"criativo_{segmento_key}_{ts}.png"
     dest = DIRETORIO_SAIDA / nome
