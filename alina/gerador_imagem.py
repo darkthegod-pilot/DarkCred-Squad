@@ -235,24 +235,6 @@ def _desenhar_botao_cta(
     draw.text((x_texto, y_texto), texto, font=fonte, fill=cor_texto)
 
 
-def _watermark(
-    img: "Image.Image",
-    draw: "ImageDraw.ImageDraw",
-    largura: int,
-    altura: int,
-) -> None:
-    """Watermark DarkCred discreto — cor adaptada ao fundo da imagem."""
-    fonte = _carregar_fonte(22, negrito=False)
-    texto = "DarkCred"
-    bbox = fonte.getbbox(texto)
-    larg = bbox[2] - bbox[0]
-    alt = bbox[3] - bbox[1]
-    x = largura - larg - 28
-    y = altura - alt - 20
-    # Usa img.mode diretamente (sem acessar draw._image)
-    cor = (200, 200, 200) if img.mode == "RGB" else (200, 200, 200, 180)
-    draw.text((x, y), texto, font=fonte, fill=cor)
-
 
 # ─────────────────────────────────────────────────────────────
 # TEMPLATE 1 — ESCURO MODERNO
@@ -307,7 +289,6 @@ def _template_escuro(variacao: dict) -> "Image.Image":
     )
     y += 52
     _desenhar_botao_cta(draw, cta, y + 36, CORES["laranja"], CORES["branco"], CORES["laranja_sombra"])
-    _watermark(img, draw, W, H)
     return img
 
 
@@ -361,15 +342,6 @@ def _template_claro(variacao: dict) -> "Image.Image":
     )
     y += 52
     _desenhar_botao_cta(draw, cta, y + 36, CORES["preto_suave"], CORES["branco"], (80, 80, 80))
-
-    # Watermark discreta
-    fonte_wm = _carregar_fonte(22, negrito=False)
-    wm = "DarkCred"
-    bbox = fonte_wm.getbbox(wm)
-    draw.text(
-        (W - (bbox[2] - bbox[0]) - 28, H - (bbox[3] - bbox[1]) - 20),
-        wm, font=fonte_wm, fill=(180, 180, 180),
-    )
     return img
 
 
@@ -426,7 +398,6 @@ def _template_verde(variacao: dict) -> "Image.Image":
     )
     y += 52
     _desenhar_botao_cta(draw, cta, y + 36, CORES["dourado"], CORES["preto_suave"], CORES["dourado_sombra"])
-    _watermark(img, draw, W, H)
     return img
 
 
@@ -452,15 +423,23 @@ def gerar_criativo(
     """
     Gera imagem PNG 1080x1080 para o criativo.
 
+    Quando OPENAI_API_KEY estiver configurada, usa GPT-image-1 (IA de última geração).
+    Caso contrário, usa templates Pillow como fallback.
+
     Args:
         variacao:     Dict com hook, corpo/body, cta
         segmento_key: Chave do segmento (para nome do arquivo)
-        template:     1, 2 ou 3 — None = aleatório
-        fundo_ia:     Caminho para fundo gerado por IA (nano-banana)
+        template:     1, 2 ou 3 — None = aleatório (ignorado no modo IA)
+        fundo_ia:     Caminho para fundo externo (ignorado no modo IA)
 
     Returns:
         Caminho absoluto do PNG salvo.
     """
+    import os
+    if os.getenv("OPENAI_API_KEY"):
+        from alina.gerador_imagem_ia import gerar_criativo_ia
+        return gerar_criativo_ia(variacao, segmento_key, template)
+
     if not PILLOW_DISPONIVEL:
         raise RuntimeError("Pillow não está instalado. Execute: pip install Pillow")
 
