@@ -62,14 +62,15 @@ HOOKS = [
 
 # ─────────────────────────────────────────────────────────────
 # CTAs — Use EXATAMENTE como escrito
+# REGRA: apenas envio de mensagem ou clique no link. NUNCA comentário.
 # ─────────────────────────────────────────────────────────────
 
 CTAS = [
-    "Chama no direct 📩",
-    "Manda 'GIRO' aqui",
-    "Me chama que a gente conversa",
-    "Manda mensagem aqui 📩",
-    "Chama no direct que eu te explico",
+    "Manda uma mensagem agora",
+    "Clique no link abaixo e fale comigo",
+    "Envia uma mensagem que eu te explico",
+    "Clique abaixo e me manda uma mensagem",
+    "Fala comigo pelo link abaixo",
 ]
 
 # ─────────────────────────────────────────────────────────────

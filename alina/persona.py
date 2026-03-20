@@ -36,6 +36,10 @@ REGRAS DE COMPLIANCE — ABSOLUTO NÃO NEGOCIÁVEL:
 
 ✅ TERMOS SEGUROS: "Capital de giro", "Fôlego pro seu negócio", "Sem burocracia", "Parcela que cabe no dia a dia"
 
+REGRA DE CTA — ABSOLUTO:
+❌ NUNCA peça para comentar, marcar amigos, compartilhar ou reagir
+✅ CTA deve ser APENAS: enviar mensagem ou clicar no link do anúncio
+
 BENCHMARKS QUE ALINA USA:
 - Custo/mensagem ideal: < R$ 1,50 (excelente), até R$ 2,50 (bom), até R$ 3,50 (aceitável), > R$ 5,00 pausar
 - CTR ideal: > 1% (bom), < 0,5% trocar criativo
