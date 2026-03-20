@@ -1,9 +1,16 @@
 """
 Gerador de Imagens com IA — Alina Pretrov
-GPT-image-1 gera fundo fotográfico profissional. Pillow sobrepõe texto com
-tipografia Poppins, hierarquia visual clara e overlay gradiente cinematográfico.
+GPT-image-1 quality="high" (teto da OpenAI) + composição profissional com Poppins.
 
-Saída: PNG 1080x1080 sem marca d'água, sem logo, pronto para Meta Ads.
+Design:
+- Fundo 1024×1024 nativo (sem upscale)
+- Painel escuro no terço inferior + gradiente de transição acima
+- Hook em LARANJA (#FF6B35), Poppins Bold 78px
+- Corpo em BRANCO, Poppins SemiBold 40px
+- Sombra de texto em 4 offsets
+- Botão CTA laranja grande
+
+Saída: PNG 1024×1024 sem marca d'água, sem logo, pronto para Meta Ads.
 """
 
 import base64
@@ -25,7 +32,7 @@ except ImportError:
     OPENAI_SDK_DISPONIVEL = False
 
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    from PIL import Image, ImageDraw, ImageFont
     import io as _io
     PILLOW_DISPONIVEL = True
 except ImportError:
@@ -39,15 +46,15 @@ except ImportError:
 
 
 DIRETORIO_SAIDA = Path("saidas/imagens")
-ASSETS_FONTS = Path(__file__).parent.parent / "assets" / "fonts"
+ASSETS_FONTS    = Path(__file__).parent.parent / "assets" / "fonts"
 
 LARANJA   = (255, 107, 53)
-LARANJA_E = (200, 75, 20)
+LARANJA_E = (190, 65, 15)
 BRANCO    = (255, 255, 255)
-PRETO     = (0, 0, 0)
+SOMBRA    = (0, 0, 0)
 
 # ─────────────────────────────────────────────────────────────
-# FONTS — Poppins com fallback para Liberation/DejaVu
+# FONTS — Poppins com fallback
 # ─────────────────────────────────────────────────────────────
 
 _FONT_CACHE: dict = {}
@@ -56,16 +63,14 @@ def _fonte(tamanho: int, peso: str = "bold") -> "ImageFont.FreeTypeFont":
     key = (tamanho, peso)
     if key in _FONT_CACHE:
         return _FONT_CACHE[key]
-
     candidatos = {
         "bold":     [str(ASSETS_FONTS / "Poppins-Bold.ttf"),
-                     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
+                     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"],
         "semibold": [str(ASSETS_FONTS / "Poppins-SemiBold.ttf"),
+                     str(ASSETS_FONTS / "Poppins-Bold.ttf"),
                      "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"],
         "regular":  [str(ASSETS_FONTS / "Poppins-Regular.ttf"),
-                     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"],
+                     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"],
     }
     for caminho in candidatos.get(peso, candidatos["regular"]):
         if Path(caminho).exists():
@@ -84,17 +89,18 @@ def _fonte(tamanho: int, peso: str = "bold") -> "ImageFont.FreeTypeFont":
 # HELPERS
 # ─────────────────────────────────────────────────────────────
 
-def _limpar_texto(texto: str) -> str:
+def _limpar(texto: str) -> str:
     import unicodedata
-    resultado = []
+    out = []
     for ch in texto:
         cp = ord(ch)
         cat = unicodedata.category(ch)
-        if cp < 0x2000 or cat.startswith("L") or cat.startswith("N") or cat in ("Po","Pd","Ps","Pe","Pc","Zs"):
-            resultado.append(ch)
+        if cp < 0x2000 or cat.startswith("L") or cat.startswith("N") \
+                or cat in ("Po","Pd","Ps","Pe","Pc","Zs"):
+            out.append(ch)
         else:
-            resultado.append(" ")
-    return " ".join("".join(resultado).split())
+            out.append(" ")
+    return " ".join("".join(out).split())
 
 
 def _quebrar(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list[str]:
@@ -114,167 +120,166 @@ def _quebrar(texto: str, fonte: "ImageFont.FreeTypeFont", max_px: int) -> list[s
     return linhas
 
 
-def _altura_bloco(linhas: list[str], fonte: "ImageFont.FreeTypeFont", esp: int) -> int:
-    total = 0
-    for l in linhas:
-        bb = fonte.getbbox(l)
-        total += (bb[3] - bb[1]) + esp
-    return total
-
-
-def _draw_texto(draw, linhas, fonte, y, cor, W, esp=8):
-    for l in linhas:
-        bb = fonte.getbbox(l)
-        lw = bb[2] - bb[0]
-        lh = bb[3] - bb[1]
-        x = (W - lw) // 2
-        draw.text((x, y), l, font=fonte, fill=cor)
-        y += lh + esp
-    return y
-
-
-def _draw_botao(img: "Image.Image", draw, texto: str, y_centro: int, W: int):
-    texto = _limpar_texto(texto)
-    f = _fonte(38, "bold")
-    bb = f.getbbox(texto)
-    tw = bb[2] - bb[0]
-    th = bb[3] - bb[1]
-    pad_h, pad_v = 72, 26
-    bw = tw + pad_h * 2
-    bh = th + pad_v * 2
-    x0 = (W - bw) // 2
-    y0 = y_centro - bh // 2
-    x1, y1 = x0 + bw, y0 + bh
-    r = 50
-
-    # Sombra
-    draw.rounded_rectangle([x0+4, y0+4, x1+4, y1+4], radius=r, fill=LARANJA_E)
-    # Botão
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=r, fill=LARANJA)
-    # Texto
-    xt = x0 + (bw - tw) // 2
-    yt = y0 + pad_v - bb[1]
-    draw.text((xt, yt), texto, font=f, fill=BRANCO)
+def _draw_sombra(draw, x, y, texto, fonte, cor, sombra=SOMBRA, offset=2):
+    """Sombra em 4 offsets diagonais para simular profundidade sem blur."""
+    for dx, dy in [(-offset,-offset),(offset,-offset),(-offset,offset),(offset,offset)]:
+        draw.text((x+dx, y+dy), texto, font=fonte, fill=sombra)
+    draw.text((x, y), texto, font=fonte, fill=cor)
 
 
 # ─────────────────────────────────────────────────────────────
-# OVERLAY GRADIENTE (mais escuro embaixo onde está o texto)
+# OVERLAY — painel escuro no terço inferior com gradiente de transição
 # ─────────────────────────────────────────────────────────────
 
-def _overlay_gradiente(img: "Image.Image") -> "Image.Image":
-    """Overlay escuro em gradiente: quase transparente no topo, opaco embaixo."""
+def _overlay_painel(img: "Image.Image") -> "Image.Image":
+    """
+    Preserva foto no topo. Escurece progressivamente a partir de 40% da altura
+    até opacidade ~195/255 no rodapé — área limpa para o texto.
+    """
     W, H = img.size
     base = img.convert("RGBA")
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
 
-    if NUMPY_DISPONIVEL:
-        alpha = np.linspace(30, 210, H, dtype=np.uint8)          # topo claro → base escura
-        overlay_arr = np.zeros((H, W, 4), dtype=np.uint8)
-        overlay_arr[:, :, 3] = alpha[:, np.newaxis]               # só canal alpha
-        overlay = Image.fromarray(overlay_arr, "RGBA")
-    else:
-        overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        od = ImageDraw.Draw(overlay)
-        for y in range(H):
-            a = int(30 + (210 - 30) * (y / H))
-            od.line([(0, y), (W, y)], fill=(0, 0, 0, a))
+    inicio_transicao = int(H * 0.38)
+    fim_transicao    = int(H * 0.58)
+    opacidade_painel = 195
+
+    # Gradiente de transição
+    for y in range(inicio_transicao, fim_transicao):
+        progresso = (y - inicio_transicao) / max(fim_transicao - inicio_transicao, 1)
+        a = int(opacidade_painel * progresso)
+        draw.line([(0, y), (W, y)], fill=(0, 0, 0, a))
+
+    # Painel sólido abaixo da transição
+    draw.rectangle([0, fim_transicao, W, H], fill=(0, 0, 0, opacidade_painel))
 
     return Image.alpha_composite(base, overlay).convert("RGB")
 
 
 # ─────────────────────────────────────────────────────────────
-# COMPOSIÇÃO DO TEXTO
+# COMPOSIÇÃO DE TEXTO
 # ─────────────────────────────────────────────────────────────
 
-def _compor_texto(img: "Image.Image", variacao: dict) -> "Image.Image":
-    W, H = img.size
-    draw = ImageDraw.Draw(img)
+def _botao_cta(draw: "ImageDraw.ImageDraw", texto: str, y_centro: int, W: int):
+    f   = _fonte(38, "bold")
+    bb  = f.getbbox(texto)
+    tw  = bb[2] - bb[0]
+    th  = bb[3] - bb[1]
+    ph, pv = 70, 24
+    bw  = tw + ph * 2
+    bh  = th + pv * 2
+    x0  = (W - bw) // 2
+    y0  = y_centro - bh // 2
+    x1, y1 = x0 + bw, y0 + bh
+    r   = 48
 
-    hook  = _limpar_texto(variacao.get("hook", ""))
-    corpo = _limpar_texto(variacao.get("corpo", variacao.get("body", "")))
+    # Sombra sólida
+    draw.rounded_rectangle([x0+4, y0+5, x1+4, y1+5], radius=r, fill=LARANJA_E)
+    # Botão
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=r, fill=LARANJA)
+    # Texto
+    xt = x0 + (bw - tw) // 2
+    yt = y0 + pv - bb[1]
+    draw.text((xt, yt), texto, font=f, fill=BRANCO)
+
+
+def _compor_texto(img: "Image.Image", variacao: dict) -> "Image.Image":
+    W, H  = img.size
+    draw  = ImageDraw.Draw(img)
+
+    hook  = _limpar(variacao.get("hook", ""))
+    corpo = _limpar(variacao.get("corpo", variacao.get("body", "")))
     cta   = variacao.get("cta", "Manda uma mensagem agora")
 
-    # Fontes
-    f_hook  = _fonte(72, "bold")
-    f_corpo = _fonte(38, "regular")
+    f_hook  = _fonte(78, "bold")
+    f_corpo = _fonte(40, "semibold")
 
-    margem  = 80
+    margem   = 72
     max_larg = W - margem * 2
 
     linhas_hook  = _quebrar(hook,  f_hook,  max_larg)
     linhas_corpo = _quebrar(corpo, f_corpo, max_larg)
 
-    h_hook  = _altura_bloco(linhas_hook,  f_hook,  16)
-    h_corpo = _altura_bloco(linhas_corpo, f_corpo, 12)
-    h_sep   = 16   # separador laranja
-    h_btn   = 90   # botão
-    h_total = h_hook + 36 + h_sep + 28 + h_corpo + 56 + h_btn
+    # Calcula altura total do bloco de texto
+    def alt_bloco(linhas, fonte, esp):
+        return sum((fonte.getbbox(l)[3] - fonte.getbbox(l)[1]) + esp for l in linhas)
 
-    y = max(60, (H - h_total) // 2)
+    h_hook  = alt_bloco(linhas_hook,  f_hook,  18)
+    h_sep   = 5 + 28 + 28          # separador + margens
+    h_corpo = alt_bloco(linhas_corpo, f_corpo, 14)
+    h_btn   = 90
+    h_total = h_hook + h_sep + h_corpo + 56 + h_btn
 
-    # Hook — branco, bold, com sombra suave
-    for l in linhas_hook:
-        bb = f_hook.getbbox(l)
+    # Posiciona o bloco no rodapé da imagem (com padding de 48px abaixo)
+    y = H - h_total - 54
+
+    # — Hook em LARANJA —
+    for linha in linhas_hook:
+        bb = f_hook.getbbox(linha)
         lw = bb[2] - bb[0]
         lh = bb[3] - bb[1]
         x  = (W - lw) // 2
-        # sombra
-        draw.text((x+2, y+2), l, font=f_hook, fill=(0, 0, 0, 160) if img.mode == "RGBA" else (10, 10, 10))
-        draw.text((x, y),     l, font=f_hook, fill=BRANCO)
-        y += lh + 16
+        _draw_sombra(draw, x, y, linha, f_hook, LARANJA, offset=3)
+        y += lh + 18
 
-    # Separador laranja
-    y += 20
-    sw = 80
+    # — Separador —
+    y += 14
+    sw = 72
     draw.rounded_rectangle([(W-sw)//2, y, (W+sw)//2, y+5], radius=3, fill=LARANJA)
-    y += 5 + 24
+    y += 5 + 22
 
-    # Corpo — branco suave
-    for l in linhas_corpo:
-        bb = f_corpo.getbbox(l)
+    # — Corpo em BRANCO SemiBold —
+    for linha in linhas_corpo:
+        bb = f_corpo.getbbox(linha)
         lw = bb[2] - bb[0]
         lh = bb[3] - bb[1]
         x  = (W - lw) // 2
-        draw.text((x, y), l, font=f_corpo, fill=(230, 230, 230))
-        y += lh + 12
+        _draw_sombra(draw, x, y, linha, f_corpo, BRANCO, offset=2)
+        y += lh + 14
 
-    # Botão CTA
-    y += 48
-    _draw_botao(img, draw, cta, y + 38, W)
+    # — Botão CTA —
+    y += 44
+    _botao_cta(draw, cta, y + 36, W)
 
     return img
 
 
 # ─────────────────────────────────────────────────────────────
-# PROMPT DE IMAGEM
+# PROMPT DE IMAGEM (Claude → GPT-image-1)
 # ─────────────────────────────────────────────────────────────
 
-_CENAS = {
-    "generico":   "a confident Brazilian small business owner, male or female, standing proudly at their shop counter or workspace, looking directly at camera with a determined expression",
-    "padaria":    "inside a warm Brazilian bakery, golden bread on shelves, soft morning light",
-    "pizzaria":   "inside a lively Brazilian pizzeria, glowing pizza oven, chef at work",
-    "lanchonete": "behind a small Brazilian snack bar counter, colorful food display",
-    "restaurante":"inside a cozy Brazilian restaurant, warm candlelight ambiance",
-    "acai":       "at a vibrant Brazilian açaí smoothie shop, colorful cups on counter",
-    "salao":      "inside a modern Brazilian hair salon, styling chairs, mirrors and warm lighting",
-    "barbearia":  "inside a stylish Brazilian barbershop, barber tools artistically arranged",
-    "manicure":   "at a bright Brazilian nail salon, polish bottles and tools on display",
-    "estetica":   "inside a clean modern Brazilian aesthetics studio, professional lighting",
-    "academia":   "inside a well-equipped Brazilian gym, weights and equipment in background",
-    "vestuario":  "inside a small trendy clothing boutique in Brazil, racks of colorful clothes",
-    "mercadinho": "inside a small Brazilian neighborhood market, shelves full of products",
-    "mecanico":   "inside a small auto repair shop in Brazil, mechanic with professional tools",
+_CENAS: dict[str, str] = {
+    "generico":   "a confident and determined Brazilian small business owner, standing at their shop, looking directly at camera",
+    "padaria":    "a Brazilian bakery owner behind the counter, fresh golden bread on warm shelves",
+    "pizzaria":   "a Brazilian pizzeria chef near a glowing pizza oven, professional kitchen",
+    "lanchonete": "a small Brazilian snack bar owner behind a colorful counter display",
+    "restaurante":"a Brazilian restaurant owner in a warmly lit dining room",
+    "acai":       "a vibrant Brazilian açaí shop attendant with colorful cups on the counter",
+    "salao":      "a Brazilian hairdresser in a modern salon with mirrors and styling chairs",
+    "barbearia":  "a Brazilian barber in a stylish barbershop with professional tools",
+    "manicure":   "a Brazilian nail technician at a bright nail salon, polish bottles on display",
+    "estetica":   "inside a clean modern Brazilian aesthetics studio with professional lighting",
+    "academia":   "a Brazilian gym owner in a well-equipped fitness studio",
+    "vestuario":  "a Brazilian clothing store owner among racks of colorful garments",
+    "mercadinho": "a Brazilian neighborhood market owner with shelves full of products",
+    "mecanico":   "a Brazilian mechanic in an auto repair shop with professional tools",
 }
+
+_BASE_PROMPT = (
+    "Cinematic dark commercial photography for a Brazilian Instagram ad. {cena}. "
+    "Subject positioned in the UPPER or CENTER portion of the frame — "
+    "the LOWER HALF of the image must be VERY DARK (almost black) to allow text overlay. "
+    "Dramatic warm orange and amber side lighting. Deep shadows. Bokeh background. "
+    "Ultra sharp focus on subject. Professional editorial magazine quality. "
+    "Color palette: very dark charcoal/black background, rich warm orange accent highlights. "
+    "NO text, NO logos, NO watermarks, NO readable signs. Perfect square 1:1 composition."
+)
+
 
 def _construir_prompt(variacao: dict, segmento_key: str) -> str:
     cena = _CENAS.get(segmento_key, _CENAS["generico"])
-    base = (
-        f"Cinematic commercial photography for Instagram ad. {cena}. "
-        "Dramatic dark background, deep shadows, warm orange and amber accent lighting from the side. "
-        "Bokeh background, shallow depth of field, professional studio quality. "
-        "Color palette: very dark navy/charcoal background with rich warm orange highlights. "
-        "Ultra sharp focus on subject, editorial magazine quality. "
-        "NO text, NO logos, NO watermarks, NO signs with words. Square 1:1 format."
-    )
+    base = _BASE_PROMPT.format(cena=cena)
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not ANTHROPIC_SDK_DISPONIVEL or not api_key:
@@ -283,12 +288,20 @@ def _construir_prompt(variacao: dict, segmento_key: str) -> str:
         client = _anthropic_sdk.Anthropic(api_key=api_key)
         r = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=250,
-            system="You are an expert art director. Write a single English prompt for GPT-image-1 to generate a professional Instagram ad background photo. Output ONLY the prompt, no explanation.",
+            max_tokens=300,
+            system=(
+                "You are a world-class art director specializing in Instagram ads. "
+                "Write a single English image generation prompt for GPT-image-1. "
+                "CRITICAL: The lower half of the image MUST be very dark for text overlay. "
+                "Subject must be in upper/center portion. NO text, logos, or watermarks. "
+                "Output ONLY the prompt."
+            ),
             messages=[{"role": "user", "content":
-                f"Segment: {segmento_key}\nScene base: {cena}\n"
-                "Requirements: cinematic dark mood, warm orange accent lighting, "
-                "NO text, NO logos, square 1:1, ultra high quality commercial photography."}],
+                f"Hook: {variacao.get('hook','')}\n"
+                f"Segment: {segmento_key}\n"
+                f"Base scene: {cena}\n\n"
+                "Generate a premium cinematic ad photography prompt. "
+                "Dark lower half mandatory. Orange accent lighting. Ultra quality."}],
         )
         return r.content[0].text.strip()
     except Exception:
@@ -296,7 +309,7 @@ def _construir_prompt(variacao: dict, segmento_key: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
-# GERAÇÃO DE FUNDO
+# GERAÇÃO DE FUNDO — GPT-image-1 quality="high"
 # ─────────────────────────────────────────────────────────────
 
 def _gerar_fundo(prompt: str) -> bytes:
@@ -311,7 +324,7 @@ def _gerar_fundo(prompt: str) -> bytes:
         model="gpt-image-1",
         prompt=prompt,
         size="1024x1024",
-        quality="high",
+        quality="high",     # plano mais caro / maior qualidade disponível
         n=1,
         output_format="png",
     )
@@ -328,8 +341,14 @@ def gerar_criativo_ia(
     template: Optional[int] = None,
 ) -> str:
     """
-    Gera criativo 1080x1080 com GPT-image-1 + tipografia Poppins.
-    Sem marca d'água. Sem logo. Pronto para Meta Ads.
+    Gera criativo 1024×1024 com GPT-image-1 quality="high" + composição Poppins.
+
+    Fluxo:
+      1. Claude escreve prompt cinematográfico (ou usa base prompt)
+      2. GPT-image-1 gera fundo fotorrealista 1024×1024 (sem upscale)
+      3. Painel escuro no terço inferior preserva foto no topo
+      4. Hook laranja + corpo branco SemiBold + botão CTA
+
     Retorna caminho absoluto do PNG.
     """
     if not PILLOW_DISPONIVEL:
@@ -337,16 +356,23 @@ def gerar_criativo_ia(
 
     DIRETORIO_SAIDA.mkdir(parents=True, exist_ok=True)
 
-    prompt   = _construir_prompt(variacao, segmento_key)
-    raw      = _gerar_fundo(prompt)
+    # 1. Prompt
+    prompt = _construir_prompt(variacao, segmento_key)
 
+    # 2. Fundo via GPT-image-1 (1024×1024 nativo, sem resize)
+    raw = _gerar_fundo(prompt)
     img = Image.open(_io.BytesIO(raw)).convert("RGB")
-    img = img.resize((1080, 1080), Image.LANCZOS)
-    img = _overlay_gradiente(img)
+    # Não redimensiona — mantém qualidade nativa 1024×1024
+
+    # 3. Painel escuro para legibilidade
+    img = _overlay_painel(img)
+
+    # 4. Composição de texto
     img = _compor_texto(img, variacao)
 
-    ts    = datetime.now().strftime("%Y%m%d_%H%M%S")
-    nome  = f"criativo_{segmento_key}_{ts}.png"
-    dest  = DIRETORIO_SAIDA / nome
-    img.save(str(dest), format="PNG", optimize=False, compress_level=1)   # máxima qualidade
+    # 5. Salva em máxima qualidade (compress_level=1 = mínima compressão)
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome = f"criativo_{segmento_key}_{ts}.png"
+    dest = DIRETORIO_SAIDA / nome
+    img.save(str(dest), format="PNG", optimize=False, compress_level=1)
     return str(dest)
