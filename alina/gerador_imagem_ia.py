@@ -344,34 +344,6 @@ def _draw_cta_pill(draw, img_rgba, y: int, cta: str, fonte,
     return pill_y + pill_h + 20
 
 
-def _draw_badge(img_rgba: "Image.Image", texto: str = "DarkCred") -> None:
-    """
-    Badge de marca no canto superior esquerdo.
-    Semi-transparente, tipografia pequena, accent color.
-    """
-    W, H = img_rgba.size
-    try:
-        f = _fonte(22, "bold")
-    except Exception:
-        return
-
-    bw = _tw(texto, f) + 24
-    bh = _th(texto, f) + 14
-    bx, by = 40, 40
-
-    ov     = Image.new("RGBA", img_rgba.size, (0, 0, 0, 0))
-    ov_drw = ImageDraw.Draw(ov)
-    ov_drw.rounded_rectangle(
-        [bx, by, bx + bw, by + bh],
-        radius=6,
-        fill=(10, 7, 5, 170),
-        outline=(*ACCENT_LINE, 160),
-        width=1,
-    )
-    img_rgba.alpha_composite(ov)
-
-    draw = ImageDraw.Draw(img_rgba)
-    draw.text((bx + 12, by + 7), texto, font=f, fill=(*ACCENT_LINE, 230))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -579,7 +551,6 @@ def _layout_tipografia_forte(img, variacao, dd):
     max_w    = W - margem * 2
     y        = _calcular_y_inicio(variacao, dd, W, H, margem, max_w)
     _bloco_texto(draw, variacao, dd, W, H, margem, max_w, y, img_rgba=img_rgba)
-    _draw_badge(img_rgba)
     return img_rgba.convert("RGB")
 
 
@@ -597,7 +568,6 @@ def _layout_split_diagonal(img, variacao, dd):
     draw.rectangle([margem - 12, y + 6, margem - 6, y + bar_h],
                    fill=(*ACCENT_LINE, 220))
     _bloco_texto(draw, variacao, dd, W, H, margem + 4, max_w, y, img_rgba=img_rgba)
-    _draw_badge(img_rgba)
     return img_rgba.convert("RGB")
 
 
@@ -620,7 +590,6 @@ def _layout_headline_centralizada(img, variacao, dd):
               fill=(*ACCENT_LINE, 180), width=2)
     draw.line([(margem, H - 38), (W - margem, H - 38)],
               fill=(255, 255, 255, 70), width=1)
-    _draw_badge(img_rgba)
     return img_rgba.convert("RGB")
 
 
@@ -641,7 +610,6 @@ def _layout_lateral_esquerda(img, variacao, dd):
     draw.line([(coluna_w, int(H * 0.15)), (coluna_w, int(H * 0.85))],
               fill=(*ACCENT_LINE, 60), width=2)
     _bloco_texto(draw, variacao, dd, W, H, margem, max_w, y, img_rgba=img_rgba)
-    _draw_badge(img_rgba)
     return img_rgba.convert("RGB")
 
 
@@ -662,22 +630,77 @@ def _compor_texto(img, variacao, layout, dd) -> "Image.Image":
 # Prompts GPT-image-1
 # ─────────────────────────────────────────────────────────────
 
-_CENAS = {
-    "generico":   "a confident cheerful Brazilian small business owner, apron, arms crossed, shop background, upper-right composition",
-    "padaria":    "a proud Brazilian bakery owner behind counter with golden fresh bread loaves, warm amber lighting",
-    "pizzaria":   "a Brazilian pizzeria chef smiling near glowing wood-fired oven, tossing dough, dynamic composition",
-    "lanchonete": "a vibrant Brazilian snack bar owner at colorful counter, high energy atmosphere",
-    "restaurante":"a welcoming Brazilian restaurant owner in warmly lit dining room, elegant gesture",
-    "acai":       "a Brazilian açaí shop attendant smiling, colorful bowls and toppings visible, fresh colors",
-    "salao":      "a confident Brazilian hair stylist in modern salon, mirrors and professional chairs",
-    "barbearia":  "a skilled Brazilian barber in stylish barbershop, professional tools and clean aesthetic",
-    "manicure":   "a happy Brazilian nail technician at bright nail studio, colorful nail polish display",
-    "estetica":   "a professional Brazilian aesthetics specialist in clean modern studio",
-    "academia":   "a energetic Brazilian gym owner in well-equipped fitness center, motivational pose",
-    "vestuario":  "a stylish Brazilian clothing store owner among racks of colorful garments",
-    "mercadinho": "a trustworthy Brazilian neighborhood market owner at full-stocked shelves",
-    "mecanico":   "a confident Brazilian auto mechanic in clean organized repair shop, tools visible",
+_CENAS: dict[str, list[str]] = {
+    "generico": [
+        "a strikingly beautiful Brazilian woman in her 30s, small business owner, stylish casual outfit, radiant warm smile, shop interior background with soft bokeh",
+        "a handsome Brazilian man in his late 20s, confident entrepreneur, clean modern outfit, bright genuine smile, blurred store background",
+        "a gorgeous Brazilian woman in her 40s, successful merchant, elegant simple attire, strong warm expression, professional workspace background",
+        "a charming Brazilian man in his 30s, arms lightly crossed, merchant apron over stylish shirt, charismatic smile, blurred shop shelves background",
+        "a beautiful young Brazilian woman entrepreneur, natural glow, minimal jewelry, light-filled business interior, confident relaxed pose",
+    ],
+    "padaria": [
+        "a beautiful Brazilian woman baker in her 30s, crisp white apron, holding a perfect golden bread loaf, warm bakery light, radiant smile",
+        "a handsome Brazilian man baker, strong forearms, flour-dusted apron, artisan bread in background, golden amber bakery lighting",
+        "a gorgeous Brazilian woman pastry chef, elegant apron, showcase of golden pastries behind her, warm glowing light, proud expression",
+    ],
+    "pizzaria": [
+        "a strikingly handsome Brazilian pizza chef, strong jawline, rolling dough confidently, wood-fired oven glow behind him, dynamic energy",
+        "a beautiful Brazilian woman pizzeria owner, chef whites, vibrant smile, colorful pizzas visible in blurred background, warm orange light",
+        "a charismatic Brazilian man in his late 30s, pizzeria owner, casual chef attire, tossing pizza dough playfully, cinematic warm light",
+    ],
+    "lanchonete": [
+        "a vibrant beautiful Brazilian woman snack bar owner, colorful counter background, energetic confident pose, warm smile, blurred food displays",
+        "a handsome lively Brazilian man at lanchonete counter, bright casual uniform, charming smile, colorful menu boards in soft bokeh",
+    ],
+    "restaurante": [
+        "a stunning Brazilian woman restaurant owner in her 40s, elegant simple dress, warm dining room background in soft focus, graceful welcoming gesture",
+        "a distinguished handsome Brazilian man restaurateur, well-groomed, smart casual attire, warmly lit dining room bokeh, confident calm expression",
+    ],
+    "acai": [
+        "a beautiful young Brazilian woman açaí shop owner, fresh natural look, colorful bowls and toppings blurred behind her, vibrant healthy energy",
+        "a handsome Brazilian man açaí shop attendant, bright smile, athletic casual style, vivid purple and green bokeh background",
+    ],
+    "salao": [
+        "a strikingly beautiful Brazilian hairstylist in her 30s, chic personal style, modern salon mirrors and chairs in soft bokeh, professional confident pose",
+        "a gorgeous Brazilian woman salon owner, immaculate hair, elegant outfit, warm salon lighting, radiant professional smile",
+        "a handsome Brazilian male hairstylist, modern groomed look, stylish casual clothes, blurred salon interior, charming relaxed expression",
+    ],
+    "barbearia": [
+        "a handsome sharp-looking Brazilian barber in his 30s, well-groomed beard, stylish barber attire, classic barbershop bokeh, strong confident pose",
+        "a charismatic young Brazilian barber, tattooed forearms, holding scissors elegantly, vintage barbershop interior in warm bokeh",
+    ],
+    "manicure": [
+        "a beautiful Brazilian nail technician, impeccably done nails, elegant minimal style, bright nail studio bokeh background, warm genuine smile",
+        "a gorgeous Brazilian woman manicurist in her 30s, colorful nail polish display softly blurred behind her, professional radiant look",
+    ],
+    "estetica": [
+        "a strikingly beautiful Brazilian aesthetics specialist, flawless skin, clean white uniform, modern studio background in soft focus, calm professional smile",
+        "a gorgeous Brazilian woman esthetician in her 30s, elegant clinic attire, spa-like studio environment in warm bokeh, serene confident expression",
+    ],
+    "academia": [
+        "a fit handsome Brazilian gym owner, athletic build, casual sporty outfit, well-equipped gym equipment blurred behind, energetic confident smile",
+        "a beautiful athletic Brazilian woman gym owner, strong graceful posture, modern fitness center in soft bokeh, motivational radiant expression",
+    ],
+    "vestuario": [
+        "a stylish beautiful Brazilian clothing boutique owner, naturally fashionable outfit, colorful garment racks in warm bokeh, poised confident smile",
+        "a handsome stylish Brazilian man clothing store owner, well-dressed, racks of clothes softly blurred, sophisticated relaxed expression",
+    ],
+    "mercadinho": [
+        "a warm trustworthy beautiful Brazilian neighborhood market owner, casual neat attire, stocked colorful shelves in soft bokeh, genuine welcoming smile",
+        "a handsome reliable Brazilian market owner in his 40s, strong honest expression, market interior warmly lit in background",
+    ],
+    "mecanico": [
+        "a handsome confident Brazilian auto mechanic, clean work uniform, organized professional workshop blurred behind, strong capable expression",
+        "a beautiful capable Brazilian woman mechanic, confident stance, professional workshop tools in warm bokeh, charming strong smile",
+    ],
 }
+
+
+def _escolher_cena(segmento_key: str) -> str:
+    """Seleciona aleatoriamente um perfil de modelo para o segmento."""
+    import random
+    opcoes = _CENAS.get(segmento_key, _CENAS["generico"])
+    return random.choice(opcoes)
 
 _LAYOUT_COMPOSITION = {
     "TIPOGRAFIA_FORTE":      "subject in upper-right third, lower 55% must be very dark navy (#0D1B4B) for text overlay",
@@ -711,7 +734,7 @@ _BASE_PROMPT = (
 
 def _construir_prompt_ia(variacao: dict, segmento_key: str,
                          layout: str, melhorias: list | None) -> str:
-    cena = _CENAS.get(segmento_key, _CENAS["generico"])
+    cena = _escolher_cena(segmento_key)
     comp = _LAYOUT_COMPOSITION.get(layout, _LAYOUT_COMPOSITION["TIPOGRAFIA_FORTE"])
     base = _BASE_PROMPT.format(cena=cena, comp=comp)
 
