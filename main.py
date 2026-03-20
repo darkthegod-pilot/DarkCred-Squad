@@ -1,123 +1,345 @@
 #!/usr/bin/env python3
+"""
+Alina Pretrov — Sistema DarkCred
+CLI principal com modos: geração, análise de imagem e chat interativo.
+"""
+
 import argparse
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-from darkcred.config import SEGMENTS
-from darkcred.generator import GenerationError, generate_variations
-from darkcred.output import save_output
-from darkcred.validator import validate_all
+from alina.config import SEGMENTOS
+from alina.gerador import ErroGeracao, gerar_variacoes, chat_com_alina
+from alina.validador import validar_todas
+from alina.saida import salvar_saida, exibir_variacoes_terminal
+from alina.aprendizado import salvar_geracao, registrar_geracao_no_aprendizado, resumo_aprendizado
+from alina.analisador import analisar_imagem_campanha, formatar_analise_para_exibicao
+from alina.aprendizado import salvar_analise_resultado
+from alina.persona import SAUDACAO_INICIAL, NOME
 
 
-def parse_args() -> argparse.Namespace:
-    segment_choices = list(SEGMENTS.keys()) + ["all"]
+# ─────────────────────────────────────────────────────────────
+# ARGUMENTOS CLI
+# ─────────────────────────────────────────────────────────────
+
+def configurar_argumentos() -> argparse.Namespace:
+    opcoes_segmento = list(SEGMENTOS.keys()) + ["todos"]
 
     parser = argparse.ArgumentParser(
-        prog="darkcred-generator",
-        description="Gerador de copy para anúncios Instagram — DarkCred",
+        prog="alina",
+        description="Alina Pretrov — Especialista em Criativos DarkCred para Instagram",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemplos:
+  python main.py                              # Gera 5 copies genéricos
+  python main.py --segmento padaria           # Copies para padaria
+  python main.py --segmento todos --quantidade 3  # Todos os segmentos
+  python main.py --analisar foto.jpg          # Analisa resultado de campanha
+  python main.py --chat                       # Conversa com a Alina
+  python main.py --aprendizado                # Ver histórico de aprendizado
+        """,
+    )
+
+    parser.add_argument(
+        "--segmento",
+        choices=opcoes_segmento,
+        default="generico",
+        metavar="SEGMENTO",
+        help=f"Segmento alvo. Use 'todos' para todos. Padrão: generico",
     )
     parser.add_argument(
-        "--segment",
-        choices=segment_choices,
-        default="generic",
-        help="Segmento alvo. Use 'all' para todos os segmentos. (padrão: generic)",
-    )
-    parser.add_argument(
-        "--count",
+        "--quantidade",
         type=int,
         default=5,
-        help="Número de variações por segmento. (padrão: 5)",
+        help="Número de variações por segmento. Padrão: 5",
     )
     parser.add_argument(
-        "--output-dir",
-        default="output",
-        help="Diretório para salvar os arquivos gerados. (padrão: ./output)",
+        "--diretorio-saida",
+        default="saidas",
+        help="Diretório para salvar os arquivos. Padrão: ./saidas",
     )
     parser.add_argument(
-        "--format",
-        choices=["json", "text", "both"],
-        default="both",
-        help="Formato de saída. (padrão: both)",
+        "--formato",
+        choices=["json", "texto", "ambos"],
+        default="ambos",
+        help="Formato de saída. Padrão: ambos",
     )
     parser.add_argument(
-        "--model",
+        "--modelo",
         default="claude-sonnet-4-6",
-        help="Modelo Claude a usar. (padrão: claude-sonnet-4-6)",
+        help="Modelo Claude a usar. Padrão: claude-sonnet-4-6",
     )
     parser.add_argument(
-        "--list-segments",
-        action="store_true",
-        help="Lista os segmentos disponíveis e sai.",
+        "--analisar",
+        metavar="IMAGEM",
+        help="Caminho para imagem/screenshot de resultado de campanha",
     )
+    parser.add_argument(
+        "--chat",
+        action="store_true",
+        help="Inicia modo chat interativo com a Alina",
+    )
+    parser.add_argument(
+        "--aprendizado",
+        action="store_true",
+        help="Exibe resumo do aprendizado acumulado",
+    )
+    parser.add_argument(
+        "--listar-segmentos",
+        action="store_true",
+        help="Lista todos os segmentos disponíveis e sai",
+    )
+
     return parser.parse_args()
 
 
-def list_segments() -> None:
-    print("Segmentos disponíveis:\n")
-    for key, seg in SEGMENTS.items():
-        print(f"  {key:<12} {seg['label']}")
-    print("\nUse --segment all para rodar todos.")
+# ─────────────────────────────────────────────────────────────
+# LISTAGEM DE SEGMENTOS
+# ─────────────────────────────────────────────────────────────
+
+def listar_segmentos() -> None:
+    print()
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("📋 SEGMENTOS DISPONÍVEIS — Alina Pretrov")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+    categorias: dict[str, list] = {}
+    for chave, seg in SEGMENTOS.items():
+        cat = seg.get("categoria", "outros")
+        categorias.setdefault(cat, []).append((chave, seg["label"]))
+
+    nomes_categorias = {
+        "geral": "🌐 GERAL",
+        "alimentacao": "🍽️  ALIMENTAÇÃO & BEBIDAS",
+        "beleza": "💅 BELEZA & CUIDADO PESSOAL",
+        "varejo": "🛍️  VAREJO & COMÉRCIO",
+        "servicos": "🔧 SERVIÇOS",
+        "ambulante": "🏪 AMBULANTES & FEIRA",
+        "mobilidade": "🚗 MOBILIDADE",
+        "educacao": "📚 EDUCAÇÃO",
+        "artesanato": "🎨 ARTESANATO",
+        "mei": "📋 MEI & AUTÔNOMO",
+    }
+
+    for cat, itens in categorias.items():
+        titulo = nomes_categorias.get(cat, cat.upper())
+        print(f"\n{titulo}")
+        for chave, label in itens:
+            print(f"  {chave:<22} {label}")
+
+    print()
+    print(f"Total: {len(SEGMENTOS)} segmentos")
+    print("Use --segmento todos para gerar para todos ao mesmo tempo.")
+    print()
 
 
-def run_segment(
-    segment_key: str, count: int, model: str, output_dir: str, fmt: str
+# ─────────────────────────────────────────────────────────────
+# GERAÇÃO DE COPIES
+# ─────────────────────────────────────────────────────────────
+
+def executar_segmento(
+    segmento_key: str,
+    quantidade: int,
+    modelo: str,
+    diretorio_saida: str,
+    formato: str,
 ) -> tuple[int, int]:
-    label = SEGMENTS[segment_key]["label"]
-    print(f"\nGerando {count} variações para: {label}...")
+    """Gera copies para um segmento. Retorna (aprovadas, reprovadas)."""
+    label = SEGMENTOS[segmento_key]["label"]
+    print()
+    print(f"  ✍️  Gerando {quantidade} variações para: {label}...")
 
     try:
-        variations = generate_variations(segment_key, count, model)
-    except GenerationError as e:
-        print(f"  ERRO: {e}", file=sys.stderr)
+        variacoes = gerar_variacoes(segmento_key, quantidade, modelo)
+    except ErroGeracao as e:
+        print(f"  ❌ ERRO: {e}", file=sys.stderr)
         return 0, 0
 
-    compliant, violations = validate_all(variations)
+    aprovadas, violacoes = validar_todas(variacoes)
 
-    if violations:
-        print(f"  {len(violations)} variação(ões) reprovada(s) na validação de compliance:")
-        for v in violations:
-            print(f"    - {v}")
+    if violacoes:
+        print(f"  ⚠️  {len(violacoes)} variação(ões) reprovada(s) no compliance:")
+        for v in violacoes:
+            print(f"     ❌ {v}")
 
-    print(f"  {len(compliant)} variação(ões) aprovada(s)")
+    n_aprovadas = len(aprovadas)
+    n_reprovadas = len(violacoes)
+    print(f"  ✅ {n_aprovadas} variação(ões) aprovada(s)")
 
-    if compliant:
-        saved = save_output(compliant, segment_key, output_dir, fmt)
-        for file_type, path in saved.items():
-            print(f"  Salvo ({file_type}): {path}")
+    if aprovadas:
+        # Exibe no terminal
+        exibir_variacoes_terminal(aprovadas)
 
-        print("\n  Preview das variações aprovadas:")
-        for i, var in enumerate(compliant, 1):
-            print(f"\n  [{i}]")
-            for line in var.get("full_copy", "").splitlines():
-                print(f"      {line}")
+        # Salva em arquivo
+        salvos = salvar_saida(aprovadas, segmento_key, diretorio_saida, formato)
+        for tipo_fmt, caminho in salvos.items():
+            print(f"  💾 Salvo ({tipo_fmt}): {caminho}")
 
-    return len(compliant), len(violations)
+        # Registra no aprendizado
+        salvar_geracao(segmento_key, aprovadas, n_aprovadas, n_reprovadas)
+        registrar_geracao_no_aprendizado(segmento_key, n_aprovadas)
 
+    return n_aprovadas, n_reprovadas
+
+
+# ─────────────────────────────────────────────────────────────
+# ANÁLISE DE IMAGEM
+# ─────────────────────────────────────────────────────────────
+
+def executar_analise_imagem(caminho_imagem: str, modelo: str) -> None:
+    """Analisa screenshot de resultado de campanha."""
+    if not Path(caminho_imagem).exists():
+        print(f"\n❌ Arquivo não encontrado: {caminho_imagem}", file=sys.stderr)
+        sys.exit(1)
+
+    print()
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print(f"📸 Analisando imagem: {caminho_imagem}")
+    print("   Aguarde, Alina está processando...")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+    try:
+        resultado = analisar_imagem_campanha(caminho_imagem, modelo)
+    except Exception as e:
+        print(f"\n❌ Erro ao analisar imagem: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Exibe resultado formatado
+    print(formatar_analise_para_exibicao(resultado))
+
+    # Salva resultado
+    metricas = resultado.get("metricas", {})
+    diagnostico = resultado.get("analise_texto", "")
+    acoes = resultado.get("acoes_imediatas", [])
+    caminho_salvo = salvar_analise_resultado(metricas, diagnostico, acoes)
+    print(f"  💾 Análise salva em: {caminho_salvo}")
+
+
+# ─────────────────────────────────────────────────────────────
+# MODO CHAT
+# ─────────────────────────────────────────────────────────────
+
+def executar_chat(modelo: str) -> None:
+    """Inicia sessão de chat interativo com a Alina."""
+    print()
+    print(SAUDACAO_INICIAL)
+    print()
+
+    historico: list[dict] = []
+
+    while True:
+        try:
+            entrada = input("Você: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nAlina: Até logo! Boas campanhas! 🚀")
+            break
+
+        if not entrada:
+            continue
+
+        if entrada.lower() in ("sair", "exit", "quit", "tchau", "bye"):
+            print("\nAlina: Até logo! Boas campanhas! 🚀")
+            break
+
+        # Verifica se o usuário quer analisar uma imagem no chat
+        if entrada.lower().startswith(("analisa ", "analisar ", "/analisar ")):
+            partes = entrada.split(maxsplit=1)
+            if len(partes) == 2:
+                caminho = partes[1].strip()
+                executar_analise_imagem(caminho, modelo)
+                historico.append({
+                    "role": "user",
+                    "content": f"[Enviei a imagem {caminho} para análise — veja os resultados acima]"
+                })
+                historico.append({
+                    "role": "assistant",
+                    "content": "[Análise de imagem processada e exibida acima]"
+                })
+                continue
+
+        historico.append({"role": "user", "content": entrada})
+
+        try:
+            resposta = chat_com_alina(historico, modelo)
+        except ErroGeracao as e:
+            print(f"\n❌ Erro: {e}", file=sys.stderr)
+            break
+
+        print(f"\nAlina: {resposta}\n")
+        historico.append({"role": "assistant", "content": resposta})
+
+        # Limita histórico para evitar contexto muito longo (mantém últimas 20 trocas)
+        if len(historico) > 40:
+            historico = historico[-40:]
+
+
+# ─────────────────────────────────────────────────────────────
+# PONTO DE ENTRADA
+# ─────────────────────────────────────────────────────────────
 
 def main() -> None:
     load_dotenv()
-    args = parse_args()
+    args = configurar_argumentos()
 
-    if args.list_segments:
-        list_segments()
+    # ── Modo: listar segmentos ────────────────────────────────
+    if args.listar_segmentos:
+        listar_segmentos()
         return
 
-    segments = list(SEGMENTS.keys()) if args.segment == "all" else [args.segment]
+    # ── Modo: resumo de aprendizado ───────────────────────────
+    if args.aprendizado:
+        print(resumo_aprendizado())
+        return
 
-    total_compliant = 0
-    total_violations = 0
+    # ── Modo: análise de imagem ───────────────────────────────
+    if args.analisar:
+        executar_analise_imagem(args.analisar, args.modelo)
+        return
 
-    for seg_key in segments:
-        compliant, violations = run_segment(
-            seg_key, args.count, args.model, args.output_dir, args.format
+    # ── Modo: chat interativo ─────────────────────────────────
+    if args.chat:
+        executar_chat(args.modelo)
+        return
+
+    # ── Modo: geração de copies ───────────────────────────────
+    segmentos = (
+        list(SEGMENTOS.keys()) if args.segmento == "todos" else [args.segmento]
+    )
+
+    print()
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print(f"✍️  {NOME} — Gerador de Criativos DarkCred")
+    if len(segmentos) > 1:
+        print(f"   {len(segmentos)} segmentos | {args.quantidade} variações cada")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+    total_aprovadas = 0
+    total_reprovadas = 0
+
+    for seg_key in segmentos:
+        aprovadas, reprovadas = executar_segmento(
+            seg_key,
+            args.quantidade,
+            args.modelo,
+            args.diretorio_saida,
+            args.formato,
         )
-        total_compliant += compliant
-        total_violations += violations
+        total_aprovadas += aprovadas
+        total_reprovadas += reprovadas
 
-    if len(segments) > 1:
-        print(f"\n{'=' * 50}")
-        print(f"Total: {total_compliant} aprovadas, {total_violations} reprovadas")
+    # Sumário final (para múltiplos segmentos)
+    if len(segmentos) > 1:
+        print()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"📊 SUMÁRIO FINAL")
+        print(f"   ✅ {total_aprovadas} copies aprovados")
+        if total_reprovadas:
+            print(f"   ❌ {total_reprovadas} reprovados no compliance")
+        print(f"   💾 Arquivos em: ./{args.diretorio_saida}/")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print()
 
 
 if __name__ == "__main__":

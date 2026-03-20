@@ -1,0 +1,16 @@
+{
+  "hooks_performance": {},
+  "ctas_performance": {},
+  "segmentos_ativos": [],
+  "ultimas_analises": [],
+  "metricas_historicas": {
+    "custo_medio_mensagem": [],
+    "ctr_medio": [],
+    "frequencia_media": []
+  },
+  "padroes_vencedores": [],
+  "padroes_a_evitar": [],
+  "total_gerações": 0,
+  "total_analises": 0,
+  "ultima_atualizacao": null
+}
