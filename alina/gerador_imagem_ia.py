@@ -51,6 +51,19 @@ from .gestor_referencias import garantir_referencias, ASSETS_FONTS as _ASSETS_FO
 
 DIRETORIO_SAIDA = Path("saidas/imagens")
 
+# ─── Formatos de criativo suportados ────────────────────────
+FORMATOS = {
+    "quadrado":      (1080, 1080),   # Feed 1:1  — padrão Meta Ads
+    "feed_vertical": (1080, 1350),   # Feed 4:5  — mais área no feed
+    "stories":       (1080, 1920),   # Stories/Reels 9:16
+}
+# Tamanhos GPT-image-1 por formato (escolhe o mais próximo)
+_GPT_TAMANHO = {
+    "quadrado":      "1024x1024",
+    "feed_vertical": "1024x1536",
+    "stories":       "1024x1536",
+}
+
 # ─── Paleta elegante ────────────────────────────────────────
 # Warm charcoal — mais quente que navy frio; combina com luz dourada brasileira
 OVERLAY_WARM = ( 10,   7,   5)
@@ -793,7 +806,7 @@ def _construir_prompt_ia(variacao: dict, segmento_key: str,
         return base
 
 
-def _gerar_fundo(prompt: str) -> bytes:
+def _gerar_fundo(prompt: str, tamanho_gpt: str = "1024x1024") -> bytes:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY não encontrada no .env")
@@ -804,12 +817,33 @@ def _gerar_fundo(prompt: str) -> bytes:
     r = client.images.generate(
         model="gpt-image-1",
         prompt=prompt,
-        size="1024x1024",
+        size=tamanho_gpt,
         quality="high",
         n=1,
         output_format="png",
     )
     return base64.b64decode(r.data[0].b64_json)
+
+
+def _redimensionar_para_formato(img: "Image.Image", formato: str) -> "Image.Image":
+    """
+    Redimensiona e/ou recorta a imagem para as dimensões do formato alvo.
+    Mantém proporção preenchendo com crop central.
+    """
+    w_alvo, h_alvo = FORMATOS.get(formato, (1080, 1080))
+    w_orig, h_orig = img.size
+
+    # Calcula escala para cobrir o alvo (cover)
+    escala = max(w_alvo / w_orig, h_alvo / h_orig)
+    w_nova = int(w_orig * escala)
+    h_nova = int(h_orig * escala)
+    img = img.resize((w_nova, h_nova), Image.LANCZOS)
+
+    # Crop central para atingir exatamente as dimensões alvo
+    left = (w_nova - w_alvo) // 2
+    top  = (h_nova - h_alvo) // 2
+    img  = img.crop((left, top, left + w_alvo, top + h_alvo))
+    return img
 
 
 # ─────────────────────────────────────────────────────────────
@@ -822,9 +856,10 @@ def gerar_criativo_ia(
     layout:       str  = "TIPOGRAFIA_FORTE",
     melhorias:    list = None,
     template:     Optional[int] = None,  # ignorado — compat. retroativa
+    formato:      str  = "quadrado",     # quadrado | feed_vertical | stories
 ) -> str:
     """
-    Gera criativo 1024×1024 com GPT-image-1 + overlay tipográfico profissional.
+    Gera criativo com GPT-image-1 + overlay tipográfico profissional.
 
     Parâmetros:
         variacao     — dict com: hook, corpo, cta
@@ -832,6 +867,7 @@ def gerar_criativo_ia(
         layout       — TIPOGRAFIA_FORTE | SPLIT_DIAGONAL |
                        HEADLINE_CENTRALIZADA | LATERAL_ESQUERDA
         melhorias    — lista de correções do revisor (iterações 2 e 3)
+        formato      — quadrado (1080×1080) | feed_vertical (1080×1350) | stories (1080×1920)
 
     Retorna caminho absoluto do PNG gerado.
     """
@@ -840,6 +876,9 @@ def gerar_criativo_ia(
 
     if layout not in _LAYOUT_FN:
         layout = "TIPOGRAFIA_FORTE"
+
+    if formato not in FORMATOS:
+        formato = "quadrado"
 
     # Garante fontes disponíveis (download silencioso se necessário)
     garantir_referencias(verbose=False)
@@ -850,16 +889,21 @@ def gerar_criativo_ia(
     dd = DesignDecision.from_melhorias(melhorias or [])
 
     # Constrói prompt + gera fundo via GPT-image-1
-    prompt = _construir_prompt_ia(variacao, segmento_key, layout, melhorias)
-    raw    = _gerar_fundo(prompt)
-    img    = Image.open(_io.BytesIO(raw)).convert("RGB")
+    prompt         = _construir_prompt_ia(variacao, segmento_key, layout, melhorias)
+    tamanho_gpt    = _GPT_TAMANHO.get(formato, "1024x1024")
+    raw            = _gerar_fundo(prompt, tamanho_gpt)
+    img            = Image.open(_io.BytesIO(raw)).convert("RGB")
+
+    # Redimensiona para as dimensões exatas do formato alvo
+    img = _redimensionar_para_formato(img, formato)
 
     # Aplica overlay + tipografia profissional
     img = _compor_texto(img, variacao, layout, dd)
 
     # Salva
-    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
-    nome = f"criativo_{segmento_key}_{layout.lower()}_{ts}.png"
-    dest = DIRETORIO_SAIDA / nome
+    ts     = datetime.now().strftime("%Y%m%d_%H%M%S")
+    sufixo = "" if formato == "quadrado" else f"_{formato}"
+    nome   = f"criativo_{segmento_key}_{layout.lower()}{sufixo}_{ts}.png"
+    dest   = DIRETORIO_SAIDA / nome
     img.save(str(dest), format="PNG", optimize=False, compress_level=1)
     return str(dest)

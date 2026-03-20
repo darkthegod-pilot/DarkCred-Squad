@@ -87,11 +87,43 @@ def carregar_aprendizado() -> dict:
     return dados
 
 
-def registrar_geracao_no_aprendizado(segmento: str, aprovados: int) -> None:
+def registrar_geracao_no_aprendizado(
+    segmento: str,
+    aprovados: int,
+    copies: list[dict] | None = None,
+    scores: list[float] | None = None,
+) -> None:
+    """
+    Registra uma geração no sistema de aprendizado.
+
+    copies: lista de dicts com keys hook, corpo, cta (das variações aprovadas)
+    scores: score visual de cada criativo aprovado (se disponível)
+    """
     dados = carregar_aprendizado()
     dados["total_gerações"] += 1
     if segmento not in dados["segmentos_ativos"]:
         dados["segmentos_ativos"].append(segmento)
+
+    # Registra hooks das variações aprovadas com score médio visual
+    score_medio = (sum(scores) / len(scores)) if scores else None
+    if copies:
+        for i, copy in enumerate(copies):
+            hook = copy.get("hook", "").strip()
+            if not hook:
+                continue
+            # Score relativo: usa score visual se disponível, senão neutro (5)
+            incremento = 0
+            if score_medio:
+                incremento = 1 if score_medio >= 8.0 else (0 if score_medio >= 7.5 else -1)
+            atual = dados["hooks_performance"].get(hook, 0)
+            dados["hooks_performance"][hook] = atual + incremento
+
+            # Segmentos → hooks: para injetar no próximo prompt do mesmo segmento
+            chave_seg = f"hooks_{segmento}"
+            if chave_seg not in dados:
+                dados[chave_seg] = {}
+            dados[chave_seg][hook] = dados[chave_seg].get(hook, 0) + (1 if incremento >= 0 else 0)
+
     dados["ultima_atualizacao"] = datetime.now().isoformat()
     _salvar_json(CAMINHO_APRENDIZADO, dados)
 
@@ -186,7 +218,7 @@ def construir_contexto_aprendizado() -> str:
         for p in dados["padroes_a_evitar"][:3]:
             linhas.append(f"  ❌ {p}")
 
-    # Hooks top performers
+    # Hooks top performers (globais)
     top_hooks = sorted(dados["hooks_performance"].items(), key=lambda x: x[1], reverse=True)[:3]
     if top_hooks and top_hooks[0][1] > 0:
         linhas.append("\nHooks com melhor histórico:")
@@ -202,6 +234,36 @@ def construir_contexto_aprendizado() -> str:
             linhas.append(f"\nÚltima análise de campanha: custo/msg = R$ {custo:.2f}")
 
     return "\n".join(linhas) if linhas else ""
+
+
+def top_hooks_por_segmento(segmento: str, n: int = 5) -> list[str]:
+    """Retorna os N hooks mais usados/bem avaliados para um segmento específico."""
+    dados = carregar_aprendizado()
+    chave_seg = f"hooks_{segmento}"
+    hooks_seg = dados.get(chave_seg, {})
+    # Combina com performance global (peso menor)
+    hooks_global = dados.get("hooks_performance", {})
+    combinado = {}
+    for h, s in hooks_global.items():
+        combinado[h] = s * 0.5
+    for h, s in hooks_seg.items():
+        combinado[h] = combinado.get(h, 0) + s * 1.0
+    tops = sorted(combinado.items(), key=lambda x: x[1], reverse=True)
+    return [h for h, _ in tops[:n] if combinado[h] > 0]
+
+
+def hooks_recentes(n: int = 5) -> list[str]:
+    """Retorna os N últimos hooks gerados (para anti-repetição)."""
+    historico = carregar_historico()
+    vistos: list[str] = []
+    for entrada in reversed(historico[-10:]):
+        for copy in entrada.get("copies", []):
+            h = copy.get("hook", "").strip()
+            if h and h not in vistos:
+                vistos.append(h)
+                if len(vistos) >= n:
+                    return vistos
+    return vistos
 
 
 def resumo_aprendizado() -> str:

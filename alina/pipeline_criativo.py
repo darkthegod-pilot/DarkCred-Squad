@@ -31,8 +31,19 @@ from typing import Optional
 from .validador import validar_variacao
 from .gerador_imagem_ia import gerar_criativo_ia
 from .revisor_criativo import revisar_criativo, ReviewResult, DIMENSOES, LABELS
+from .config import score_minimo_aprovacao
+from .aprendizado import carregar_aprendizado
 
 MAX_TENTATIVAS = 3
+
+
+def _score_minimo_atual() -> float:
+    """Score mínimo de aprovação adaptado ao nível de experiência acumulada."""
+    try:
+        dados = carregar_aprendizado()
+        return score_minimo_aprovacao(dados.get("total_gerações", 0))
+    except Exception:
+        return 7.5
 
 # ─── Mapa segmento → layout preferido ───────────────────────
 _LAYOUT_POR_SEGMENTO: dict = {
@@ -356,6 +367,11 @@ def executar_pipeline(
     if verbose:
         print("        ✅ Copy APROVADO — sem violacoes")
 
+    # Score mínimo adaptativo baseado na experiência acumulada
+    score_minimo = _score_minimo_atual()
+    if verbose:
+        print(f"        Score mínimo de aprovação: {score_minimo:.1f} (adaptativo)")
+
     # ── Loop de tentativas ───────────────────────────────────
     melhorias_acumuladas: list       = []
     historico:            list       = []
@@ -386,7 +402,8 @@ def executar_pipeline(
             print(f"        Salvo em: {img_path}")
             print(f"  [4/5] Revisando com Claude Vision...")
 
-        review = revisar_criativo(img_path, variacao, segmento, tentativa=tentativa)
+        review = revisar_criativo(img_path, variacao, segmento, tentativa=tentativa,
+                                   score_minimo=score_minimo)
         historico.append(review)
 
         if verbose:

@@ -129,6 +129,7 @@ def revisar_criativo(
     variacao: dict,
     segmento: str = "generico",
     tentativa: int = 1,
+    score_minimo: float = SCORE_MINIMO,
 ) -> ReviewResult:
     """
     Analisa visualmente o criativo usando Claude Vision.
@@ -202,7 +203,7 @@ def revisar_criativo(
             scores[dim] = 5.0
 
     score_total = sum(scores[d] for d in DIMENSOES) / len(DIMENSOES)
-    aprovado    = (score_total >= SCORE_MINIMO and
+    aprovado    = (score_total >= score_minimo and
                    scores.get("compliance_visual", 0) >= COMPLIANCE_MINIMO)
 
     return ReviewResult(

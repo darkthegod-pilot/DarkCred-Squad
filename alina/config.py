@@ -360,3 +360,20 @@ OPERACAO = {
 
 LIMITE_CARACTERES_COPY = 500
 LIMITE_CARACTERES_HOOK = 80
+
+# ─────────────────────────────────────────────────────────────
+# SCORE ADAPTATIVO — mínimo de aprovação visual sobe com experiência
+# ─────────────────────────────────────────────────────────────
+
+SCORE_MINIMO_INICIAL    = 7.5   # até 9 gerações acumuladas
+SCORE_MINIMO_EXPERIENTE = 8.0   # 10–24 gerações acumuladas
+SCORE_MINIMO_SENIOR     = 8.5   # 25+ gerações acumuladas
+
+
+def score_minimo_aprovacao(total_geracoes: int) -> float:
+    """Retorna o score mínimo de aprovação visual conforme experiência acumulada."""
+    if total_geracoes >= 25:
+        return SCORE_MINIMO_SENIOR
+    if total_geracoes >= 10:
+        return SCORE_MINIMO_EXPERIENTE
+    return SCORE_MINIMO_INICIAL

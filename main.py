@@ -7,6 +7,7 @@ CLI principal com modos: geração, análise de imagem e chat interativo.
 import argparse
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -110,6 +111,20 @@ Exemplos:
     parser.add_argument(
         "--regenerar-imagens", metavar="JSON",
         help="Caminho para JSON de saída salvo — regera as imagens dos copies",
+    )
+    parser.add_argument(
+        "--paralelo", action="store_true",
+        help="Gera criativos para múltiplos segmentos em paralelo (até 3 simultâneos)",
+    )
+    parser.add_argument(
+        "--pipeline", action="store_true",
+        help="Usa pipeline completo GPT-image-1 + revisão visual para cada copy aprovado",
+    )
+    parser.add_argument(
+        "--formato-criativo",
+        choices=["quadrado", "feed_vertical", "stories"],
+        default="quadrado",
+        help="Formato do criativo: quadrado (1080×1080), feed_vertical (1080×1350), stories (1080×1920). Padrão: quadrado",
     )
 
     return parser.parse_args()
@@ -217,7 +232,7 @@ def executar_segmento(
         arquivos = salvar_saida(aprovadas, segmento_key, diretorio_saida, formato)
         exibir_resumo_geracao(label, len(variacoes), n_aprovadas, n_reprovadas, tempo_total, arquivos)
         salvar_geracao(segmento_key, aprovadas, n_aprovadas, n_reprovadas)
-        registrar_geracao_no_aprendizado(segmento_key, n_aprovadas)
+        registrar_geracao_no_aprendizado(segmento_key, n_aprovadas, copies=aprovadas)
 
         # ── Geração de imagens ──────────────────────────────────
         if gerar_imagem:
@@ -555,15 +570,36 @@ def main() -> None:
     total_reprovadas = 0
     inicio_total = time.time()
 
-    for seg_key in segmentos:
-        aprovadas, reprovadas = executar_segmento(
-            seg_key, args.quantidade, args.modelo, args.diretorio_saida, args.formato,
-            gerar_imagem=args.imagem,
-            template_imagem=args.template,
-            usar_ia=args.ia,
-        )
-        total_aprovadas += aprovadas
-        total_reprovadas += reprovadas
+    kwargs_segmento = dict(
+        quantidade=args.quantidade,
+        modelo=args.modelo,
+        diretorio_saida=args.diretorio_saida,
+        formato=args.formato,
+        gerar_imagem=args.imagem,
+        template_imagem=args.template,
+        usar_ia=args.ia,
+    )
+
+    if args.paralelo and len(segmentos) > 1:
+        console.print(f"  [dim]Modo paralelo: até 3 segmentos simultâneos[/dim]\n")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futuros = {
+                executor.submit(executar_segmento, seg_key, **kwargs_segmento): seg_key
+                for seg_key in segmentos
+            }
+            for futuro in as_completed(futuros):
+                try:
+                    aprov, reprov = futuro.result()
+                    total_aprovadas += aprov
+                    total_reprovadas += reprov
+                except Exception as e:
+                    seg = futuros[futuro]
+                    console.print(f"  [red]❌ Erro no segmento {seg}:[/red] {e}")
+    else:
+        for seg_key in segmentos:
+            aprovadas, reprovadas = executar_segmento(seg_key, **kwargs_segmento)
+            total_aprovadas += aprovadas
+            total_reprovadas += reprovadas
 
     tempo_total = time.time() - inicio_total
 
