@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/user/DarkCred-Squad && python scripts/verificar_agendados.py 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

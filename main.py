@@ -6,18 +6,36 @@ CLI principal com modos: geração, análise de imagem e chat interativo.
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.rule import Rule
+from rich import box
 
 from alina.config import SEGMENTOS
 from alina.gerador import ErroGeracao, gerar_variacoes, chat_com_alina
 from alina.validador import validar_todas
-from alina.saida import salvar_saida, exibir_variacoes_terminal
-from alina.aprendizado import salvar_geracao, registrar_geracao_no_aprendizado, resumo_aprendizado
+from alina.saida import (
+    salvar_saida,
+    exibir_variacoes_terminal,
+    exibir_resumo_geracao,
+    exibir_violacoes,
+    console,
+)
+from alina.aprendizado import (
+    salvar_geracao,
+    registrar_geracao_no_aprendizado,
+    resumo_aprendizado,
+    construir_contexto_aprendizado,
+)
 from alina.analisador import analisar_imagem_campanha, formatar_analise_para_exibicao
 from alina.aprendizado import salvar_analise_resultado
 from alina.persona import SAUDACAO_INICIAL, NOME
+from alina.logger import log
 
 
 # ─────────────────────────────────────────────────────────────
@@ -33,64 +51,41 @@ def configurar_argumentos() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemplos:
-  python main.py                              # Gera 5 copies genéricos
-  python main.py --segmento padaria           # Copies para padaria
-  python main.py --segmento todos --quantidade 3  # Todos os segmentos
-  python main.py --analisar foto.jpg          # Analisa resultado de campanha
-  python main.py --chat                       # Conversa com a Alina
-  python main.py --aprendizado                # Ver histórico de aprendizado
+  python main.py                              # 5 copies genéricos
+  python main.py --segmento padaria           # copies para padaria
+  python main.py --segmento todos -q 3       # todos os segmentos
+  python main.py --analisar foto.jpg          # analisa resultado
+  python main.py --chat                       # conversa com Alina
+  python main.py --aprendizado                # ver aprendizado
         """,
     )
-
     parser.add_argument(
-        "--segmento",
-        choices=opcoes_segmento,
-        default="generico",
-        metavar="SEGMENTO",
-        help=f"Segmento alvo. Use 'todos' para todos. Padrão: generico",
+        "--segmento", choices=opcoes_segmento, default="generico", metavar="SEGMENTO",
+        help="Segmento alvo. Use 'todos' para todos. Padrão: generico",
     )
     parser.add_argument(
-        "--quantidade",
-        type=int,
-        default=5,
+        "--quantidade", "-q", type=int, default=5,
         help="Número de variações por segmento. Padrão: 5",
     )
     parser.add_argument(
-        "--diretorio-saida",
-        default="saidas",
-        help="Diretório para salvar os arquivos. Padrão: ./saidas",
+        "--diretorio-saida", default="saidas",
+        help="Diretório para salvar arquivos. Padrão: ./saidas",
     )
     parser.add_argument(
-        "--formato",
-        choices=["json", "texto", "ambos"],
-        default="ambos",
+        "--formato", choices=["json", "texto", "ambos"], default="ambos",
         help="Formato de saída. Padrão: ambos",
     )
     parser.add_argument(
-        "--modelo",
-        default="claude-sonnet-4-6",
-        help="Modelo Claude a usar. Padrão: claude-sonnet-4-6",
+        "--modelo", default="claude-sonnet-4-6",
+        help="Modelo Claude. Padrão: claude-sonnet-4-6",
     )
     parser.add_argument(
-        "--analisar",
-        metavar="IMAGEM",
-        help="Caminho para imagem/screenshot de resultado de campanha",
+        "--analisar", metavar="IMAGEM",
+        help="Caminho para screenshot de resultado de campanha",
     )
-    parser.add_argument(
-        "--chat",
-        action="store_true",
-        help="Inicia modo chat interativo com a Alina",
-    )
-    parser.add_argument(
-        "--aprendizado",
-        action="store_true",
-        help="Exibe resumo do aprendizado acumulado",
-    )
-    parser.add_argument(
-        "--listar-segmentos",
-        action="store_true",
-        help="Lista todos os segmentos disponíveis e sai",
-    )
+    parser.add_argument("--chat", action="store_true", help="Chat interativo com Alina")
+    parser.add_argument("--aprendizado", action="store_true", help="Resumo do aprendizado acumulado")
+    parser.add_argument("--listar-segmentos", action="store_true", help="Lista segmentos e sai")
 
     return parser.parse_args()
 
@@ -100,39 +95,52 @@ Exemplos:
 # ─────────────────────────────────────────────────────────────
 
 def listar_segmentos() -> None:
-    print()
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("📋 SEGMENTOS DISPONÍVEIS — Alina Pretrov")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    from rich.table import Table
+
+    console.print()
+    console.rule("[bold cyan]📋 Segmentos Disponíveis — Alina Pretrov[/bold cyan]")
 
     categorias: dict[str, list] = {}
     for chave, seg in SEGMENTOS.items():
         cat = seg.get("categoria", "outros")
         categorias.setdefault(cat, []).append((chave, seg["label"]))
 
-    nomes_categorias = {
-        "geral": "🌐 GERAL",
-        "alimentacao": "🍽️  ALIMENTAÇÃO & BEBIDAS",
-        "beleza": "💅 BELEZA & CUIDADO PESSOAL",
-        "varejo": "🛍️  VAREJO & COMÉRCIO",
-        "servicos": "🔧 SERVIÇOS",
-        "ambulante": "🏪 AMBULANTES & FEIRA",
-        "mobilidade": "🚗 MOBILIDADE",
-        "educacao": "📚 EDUCAÇÃO",
-        "artesanato": "🎨 ARTESANATO",
-        "mei": "📋 MEI & AUTÔNOMO",
+    icones = {
+        "geral": "🌐", "alimentacao": "🍽️", "beleza": "💅",
+        "varejo": "🛍️", "servicos": "🔧", "ambulante": "🏪",
+        "mobilidade": "🚗", "educacao": "📚", "artesanato": "🎨", "mei": "📋",
     }
 
     for cat, itens in categorias.items():
-        titulo = nomes_categorias.get(cat, cat.upper())
-        print(f"\n{titulo}")
+        icone = icones.get(cat, "•")
+        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+        table.add_column("Chave", style="cyan", width=24)
+        table.add_column("Label")
         for chave, label in itens:
-            print(f"  {chave:<22} {label}")
+            table.add_row(chave, label)
+        console.print(f"\n{icone} [bold]{cat.upper()}[/bold]")
+        console.print(table)
 
-    print()
-    print(f"Total: {len(SEGMENTOS)} segmentos")
-    print("Use --segmento todos para gerar para todos ao mesmo tempo.")
-    print()
+    console.print(f"\n[dim]Total: {len(SEGMENTOS)} segmentos | Use --segmento todos para gerar para todos[/dim]\n")
+
+
+# ─────────────────────────────────────────────────────────────
+# CONTEXTO DE APRENDIZADO (exibido ao iniciar se houver dados)
+# ─────────────────────────────────────────────────────────────
+
+def _exibir_contexto_aprendizado_se_houver() -> None:
+    ctx = construir_contexto_aprendizado()
+    if ctx:
+        console.print(
+            Panel(
+                f"[dim]{ctx}[/dim]",
+                title="[bold yellow]📚 Contexto do Aprendizado[/bold yellow]",
+                border_style="yellow",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+        )
+        console.print()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -148,38 +156,42 @@ def executar_segmento(
 ) -> tuple[int, int]:
     """Gera copies para um segmento. Retorna (aprovadas, reprovadas)."""
     label = SEGMENTOS[segmento_key]["label"]
-    print()
-    print(f"  ✍️  Gerando {quantidade} variações para: {label}...")
+    log.info(f"Executando segmento: {segmento_key}")
 
-    try:
-        variacoes = gerar_variacoes(segmento_key, quantidade, modelo)
-    except ErroGeracao as e:
-        print(f"  ❌ ERRO: {e}", file=sys.stderr)
-        return 0, 0
+    console.print(f"\n[bold]✍️  {label}[/bold]")
+
+    # Spinner enquanto chama a API
+    variacoes = None
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[cyan]Alina está gerando...[/cyan]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        inicio = time.time()
+        try:
+            variacoes = gerar_variacoes(segmento_key, quantidade, modelo)
+        except ErroGeracao as e:
+            console.print(f"  [red]❌ ERRO:[/red] {e}")
+            log.error(f"Erro ao gerar para {segmento_key}: {e}")
+            return 0, 0
+        tempo_total = time.time() - inicio
 
     aprovadas, violacoes = validar_todas(variacoes)
-
-    if violacoes:
-        print(f"  ⚠️  {len(violacoes)} variação(ões) reprovada(s) no compliance:")
-        for v in violacoes:
-            print(f"     ❌ {v}")
+    exibir_violacoes(violacoes)
 
     n_aprovadas = len(aprovadas)
     n_reprovadas = len(violacoes)
-    print(f"  ✅ {n_aprovadas} variação(ões) aprovada(s)")
 
     if aprovadas:
-        # Exibe no terminal
-        exibir_variacoes_terminal(aprovadas)
-
-        # Salva em arquivo
-        salvos = salvar_saida(aprovadas, segmento_key, diretorio_saida, formato)
-        for tipo_fmt, caminho in salvos.items():
-            print(f"  💾 Salvo ({tipo_fmt}): {caminho}")
-
-        # Registra no aprendizado
+        exibir_variacoes_terminal(aprovadas, segmento_key)
+        arquivos = salvar_saida(aprovadas, segmento_key, diretorio_saida, formato)
+        exibir_resumo_geracao(label, len(variacoes), n_aprovadas, n_reprovadas, tempo_total, arquivos)
         salvar_geracao(segmento_key, aprovadas, n_aprovadas, n_reprovadas)
         registrar_geracao_no_aprendizado(segmento_key, n_aprovadas)
+    else:
+        console.print("  [red]Nenhuma variação aprovada no compliance.[/red]")
 
     return n_aprovadas, n_reprovadas
 
@@ -189,32 +201,36 @@ def executar_segmento(
 # ─────────────────────────────────────────────────────────────
 
 def executar_analise_imagem(caminho_imagem: str, modelo: str) -> None:
-    """Analisa screenshot de resultado de campanha."""
     if not Path(caminho_imagem).exists():
-        print(f"\n❌ Arquivo não encontrado: {caminho_imagem}", file=sys.stderr)
+        console.print(f"\n[red]❌ Arquivo não encontrado:[/red] {caminho_imagem}")
         sys.exit(1)
 
-    print()
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print(f"📸 Analisando imagem: {caminho_imagem}")
-    print("   Aguarde, Alina está processando...")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    console.print()
+    console.rule("[bold magenta]📸 Análise de Resultado — Alina Pretrov[/bold magenta]")
 
-    try:
-        resultado = analisar_imagem_campanha(caminho_imagem, modelo)
-    except Exception as e:
-        print(f"\n❌ Erro ao analisar imagem: {e}", file=sys.stderr)
-        sys.exit(1)
+    resultado = None
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[magenta]Alina está analisando a imagem...[/magenta]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        try:
+            resultado = analisar_imagem_campanha(caminho_imagem, modelo)
+        except Exception as e:
+            console.print(f"\n[red]❌ Erro ao analisar imagem:[/red] {e}")
+            log.error(f"Erro ao analisar imagem {caminho_imagem}: {e}")
+            sys.exit(1)
 
-    # Exibe resultado formatado
     print(formatar_analise_para_exibicao(resultado))
 
-    # Salva resultado
     metricas = resultado.get("metricas", {})
     diagnostico = resultado.get("analise_texto", "")
     acoes = resultado.get("acoes_imediatas", [])
     caminho_salvo = salvar_analise_resultado(metricas, diagnostico, acoes)
-    print(f"  💾 Análise salva em: {caminho_salvo}")
+    console.print(f"  [dim]💾 Análise salva em: {caminho_salvo}[/dim]")
+    log.info(f"Análise de imagem salva em: {caminho_salvo}")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -222,55 +238,71 @@ def executar_analise_imagem(caminho_imagem: str, modelo: str) -> None:
 # ─────────────────────────────────────────────────────────────
 
 def executar_chat(modelo: str) -> None:
-    """Inicia sessão de chat interativo com a Alina."""
-    print()
-    print(SAUDACAO_INICIAL)
-    print()
+    console.print()
+    console.print(
+        Panel(
+            SAUDACAO_INICIAL,
+            border_style="cyan",
+            box=box.ROUNDED,
+            padding=(0, 2),
+        )
+    )
+    console.print()
 
     historico: list[dict] = []
 
     while True:
         try:
-            entrada = input("Você: ").strip()
+            entrada = console.input("[bold cyan]Você:[/bold cyan] ").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\n\nAlina: Até logo! Boas campanhas! 🚀")
+            console.print("\n\n[cyan]Alina: Até logo! Boas campanhas! 🚀[/cyan]")
             break
 
         if not entrada:
             continue
 
         if entrada.lower() in ("sair", "exit", "quit", "tchau", "bye"):
-            print("\nAlina: Até logo! Boas campanhas! 🚀")
+            console.print("\n[cyan]Alina: Até logo! Boas campanhas! 🚀[/cyan]")
             break
 
-        # Verifica se o usuário quer analisar uma imagem no chat
+        # Analisa imagem se o usuário pedir no chat
         if entrada.lower().startswith(("analisa ", "analisar ", "/analisar ")):
             partes = entrada.split(maxsplit=1)
             if len(partes) == 2:
-                caminho = partes[1].strip()
-                executar_analise_imagem(caminho, modelo)
-                historico.append({
-                    "role": "user",
-                    "content": f"[Enviei a imagem {caminho} para análise — veja os resultados acima]"
-                })
-                historico.append({
-                    "role": "assistant",
-                    "content": "[Análise de imagem processada e exibida acima]"
-                })
+                executar_analise_imagem(partes[1].strip(), modelo)
+                historico.append({"role": "user", "content": f"[Imagem {partes[1].strip()} analisada — veja resultado acima]"})
+                historico.append({"role": "assistant", "content": "[Análise processada e exibida acima]"})
                 continue
 
         historico.append({"role": "user", "content": entrada})
 
-        try:
-            resposta = chat_com_alina(historico, modelo)
-        except ErroGeracao as e:
-            print(f"\n❌ Erro: {e}", file=sys.stderr)
-            break
+        resposta = None
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[dim]Alina está pensando...[/dim]"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("", total=None)
+            try:
+                resposta = chat_com_alina(historico, modelo)
+            except ErroGeracao as e:
+                console.print(f"\n[red]❌ Erro:[/red] {e}")
+                break
 
-        print(f"\nAlina: {resposta}\n")
+        console.print(
+            Panel(
+                resposta,
+                title="[bold cyan]Alina Pretrov[/bold cyan]",
+                border_style="cyan",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+        )
+        console.print()
         historico.append({"role": "assistant", "content": resposta})
 
-        # Limita histórico para evitar contexto muito longo (mantém últimas 20 trocas)
+        # Mantém histórico razoável (últimas 40 mensagens)
         if len(historico) > 40:
             historico = historico[-40:]
 
@@ -283,63 +315,58 @@ def main() -> None:
     load_dotenv()
     args = configurar_argumentos()
 
-    # ── Modo: listar segmentos ────────────────────────────────
     if args.listar_segmentos:
         listar_segmentos()
         return
 
-    # ── Modo: resumo de aprendizado ───────────────────────────
     if args.aprendizado:
-        print(resumo_aprendizado())
+        console.print(resumo_aprendizado())
         return
 
-    # ── Modo: análise de imagem ───────────────────────────────
     if args.analisar:
         executar_analise_imagem(args.analisar, args.modelo)
         return
 
-    # ── Modo: chat interativo ─────────────────────────────────
     if args.chat:
         executar_chat(args.modelo)
         return
 
-    # ── Modo: geração de copies ───────────────────────────────
+    # ── Modo geração ───────────────────────────────────────────
     segmentos = (
         list(SEGMENTOS.keys()) if args.segmento == "todos" else [args.segmento]
     )
 
-    print()
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print(f"✍️  {NOME} — Gerador de Criativos DarkCred")
-    if len(segmentos) > 1:
-        print(f"   {len(segmentos)} segmentos | {args.quantidade} variações cada")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    console.print()
+    console.rule(f"[bold cyan]✍️  {NOME} — Gerador de Criativos DarkCred[/bold cyan]")
+
+    # Exibe contexto de aprendizado se houver
+    _exibir_contexto_aprendizado_se_houver()
 
     total_aprovadas = 0
     total_reprovadas = 0
+    inicio_total = time.time()
 
     for seg_key in segmentos:
         aprovadas, reprovadas = executar_segmento(
-            seg_key,
-            args.quantidade,
-            args.modelo,
-            args.diretorio_saida,
-            args.formato,
+            seg_key, args.quantidade, args.modelo, args.diretorio_saida, args.formato,
         )
         total_aprovadas += aprovadas
         total_reprovadas += reprovadas
 
-    # Sumário final (para múltiplos segmentos)
+    tempo_total = time.time() - inicio_total
+
+    # Sumário final
     if len(segmentos) > 1:
-        print()
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print(f"📊 SUMÁRIO FINAL")
-        print(f"   ✅ {total_aprovadas} copies aprovados")
+        console.print()
+        console.rule("[bold]📊 Sumário Final[/bold]")
+        console.print(f"  [green]✅ {total_aprovadas} copies aprovados[/green]")
         if total_reprovadas:
-            print(f"   ❌ {total_reprovadas} reprovados no compliance")
-        print(f"   💾 Arquivos em: ./{args.diretorio_saida}/")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print()
+            console.print(f"  [red]❌ {total_reprovadas} reprovados no compliance[/red]")
+        console.print(f"  ⏱️  Tempo total: [dim]{tempo_total:.1f}s[/dim]")
+        console.print(f"  💾 Arquivos em: [dim]./{args.diretorio_saida}/[/dim]")
+        console.print()
+
+    log.info(f"Sessão encerrada: {total_aprovadas} aprovados, {total_reprovadas} reprovados")
 
 
 if __name__ == "__main__":
