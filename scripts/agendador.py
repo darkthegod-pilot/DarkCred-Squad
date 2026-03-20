@@ -116,13 +116,38 @@ def gerar_envio(identificador_horario: str) -> dict | None:
 
         dica = _gerar_dica_do_dia()
 
+        # ── Gera imagens para os copies aprovados ──────────────
+        imagens_geradas = []
+        try:
+            from alina.gerador_imagem import gerar_criativos_para_variacoes, PILLOW_DISPONIVEL
+            if PILLOW_DISPONIVEL and aprovadas:
+                print(f"   Gerando imagens PNG...")
+                imagens_geradas = gerar_criativos_para_variacoes(
+                    aprovadas,
+                    segmento_key="generico",
+                    template=None,   # aleatório
+                    usar_ia=False,   # sem IA no agendador (evita dependência de infsh no cron)
+                )
+                print(f"   📸 {len(imagens_geradas)} imagem(ns) gerada(s)")
+        except Exception as e:
+            print(f"   ⚠️  Imagens não geradas: {e}")
+
+        # Associa cada copy ao seu PNG (se gerado)
+        copies_com_imagem = []
+        for i, copy in enumerate(aprovadas):
+            entry = dict(copy)
+            if i < len(imagens_geradas):
+                entry["imagem_png"] = imagens_geradas[i]
+            copies_com_imagem.append(entry)
+
         envio = {
             "horario": identificador_horario,
             "gerado_em": agora.isoformat(),
             "emoji": emoji,
             "total_aprovadas": len(aprovadas),
             "dica_do_dia": dica,
-            "copies": aprovadas,
+            "copies": copies_com_imagem,
+            "imagens": imagens_geradas,
             "exibido": False,
         }
 

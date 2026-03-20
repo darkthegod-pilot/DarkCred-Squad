@@ -54,6 +54,9 @@ Exemplos:
   python main.py                              # 5 copies genéricos
   python main.py --segmento padaria           # copies para padaria
   python main.py --segmento todos -q 3       # todos os segmentos
+  python main.py --imagem                     # copies + imagem PNG
+  python main.py --imagem --template 1        # força template escuro
+  python main.py --imagem --ia                # fundo gerado por IA (requer infsh)
   python main.py --analisar foto.jpg          # analisa resultado
   python main.py --chat                       # conversa com Alina
   python main.py --aprendizado                # ver aprendizado
@@ -86,6 +89,18 @@ Exemplos:
     parser.add_argument("--chat", action="store_true", help="Chat interativo com Alina")
     parser.add_argument("--aprendizado", action="store_true", help="Resumo do aprendizado acumulado")
     parser.add_argument("--listar-segmentos", action="store_true", help="Lista segmentos e sai")
+    parser.add_argument(
+        "--imagem", action="store_true",
+        help="Gera imagem PNG 1080x1080 do criativo para cada copy aprovado",
+    )
+    parser.add_argument(
+        "--template", type=int, choices=[1, 2, 3], default=None,
+        help="Template da imagem: 1=Escuro, 2=Claro, 3=Verde. Padrão: aleatório",
+    )
+    parser.add_argument(
+        "--ia", action="store_true",
+        help="Usa nano-banana-2 (Gemini) para gerar fundo da imagem (requer infsh)",
+    )
 
     return parser.parse_args()
 
@@ -153,8 +168,11 @@ def executar_segmento(
     modelo: str,
     diretorio_saida: str,
     formato: str,
+    gerar_imagem: bool = False,
+    template_imagem: int | None = None,
+    usar_ia: bool = False,
 ) -> tuple[int, int]:
-    """Gera copies para um segmento. Retorna (aprovadas, reprovadas)."""
+    """Gera copies (e opcionalmente imagens) para um segmento. Retorna (aprovadas, reprovadas)."""
     label = SEGMENTOS[segmento_key]["label"]
     log.info(f"Executando segmento: {segmento_key}")
 
@@ -190,10 +208,85 @@ def executar_segmento(
         exibir_resumo_geracao(label, len(variacoes), n_aprovadas, n_reprovadas, tempo_total, arquivos)
         salvar_geracao(segmento_key, aprovadas, n_aprovadas, n_reprovadas)
         registrar_geracao_no_aprendizado(segmento_key, n_aprovadas)
+
+        # ── Geração de imagens ──────────────────────────────────
+        if gerar_imagem:
+            _executar_geracao_imagens(aprovadas, segmento_key, template_imagem, usar_ia)
     else:
         console.print("  [red]Nenhuma variação aprovada no compliance.[/red]")
 
     return n_aprovadas, n_reprovadas
+
+
+def _executar_geracao_imagens(
+    aprovadas: list[dict],
+    segmento_key: str,
+    template: int | None,
+    usar_ia: bool,
+) -> None:
+    """Gera PNGs para as variações aprovadas e exibe os caminhos."""
+    try:
+        from alina.gerador_imagem import gerar_criativos_para_variacoes, PILLOW_DISPONIVEL
+    except ImportError:
+        console.print("  [yellow]⚠️  Pillow não instalado. Execute: pip install Pillow[/yellow]")
+        return
+
+    if not PILLOW_DISPONIVEL:
+        console.print("  [yellow]⚠️  Pillow não disponível. Execute: pip install Pillow[/yellow]")
+        return
+
+    # Verifica infsh se --ia solicitado
+    if usar_ia:
+        try:
+            from alina.nano_banana import verificar_infsh_disponivel
+            if not verificar_infsh_disponivel():
+                console.print("  [yellow]⚠️  infsh não encontrado. Instale em inference.sh para usar --ia.[/yellow]")
+                usar_ia = False
+        except ImportError:
+            usar_ia = False
+
+    spinner_txt = "[magenta]Gerando imagens...[/magenta]"
+    if usar_ia:
+        spinner_txt = "[magenta]Gerando imagens com IA (Gemini)...[/magenta]"
+
+    caminhos = []
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn(spinner_txt),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        try:
+            caminhos = gerar_criativos_para_variacoes(
+                aprovadas,
+                segmento_key=segmento_key,
+                template=template,
+                usar_ia=usar_ia,
+            )
+        except Exception as e:
+            console.print(f"  [red]❌ Erro ao gerar imagens:[/red] {e}")
+            log.error(f"Erro ao gerar imagens para {segmento_key}: {e}")
+            return
+
+    if caminhos:
+        from rich import box as rbox
+        from rich.table import Table
+        tbl = Table(
+            title="📸 Criativos Gerados",
+            box=rbox.SIMPLE,
+            show_header=False,
+            padding=(0, 1),
+        )
+        tbl.add_column("N", style="dim", width=4)
+        tbl.add_column("Arquivo", style="cyan")
+        for i, c in enumerate(caminhos, 1):
+            tbl.add_row(str(i), c)
+        console.print(tbl)
+        console.print(
+            f"  [dim]Abra as imagens ou use o Read tool para visualizá-las aqui no chat.[/dim]\n"
+        )
+        log.info(f"Imagens geradas: {caminhos}")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -349,6 +442,9 @@ def main() -> None:
     for seg_key in segmentos:
         aprovadas, reprovadas = executar_segmento(
             seg_key, args.quantidade, args.modelo, args.diretorio_saida, args.formato,
+            gerar_imagem=args.imagem,
+            template_imagem=args.template,
+            usar_ia=args.ia,
         )
         total_aprovadas += aprovadas
         total_reprovadas += reprovadas

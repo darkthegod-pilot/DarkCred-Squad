@@ -46,9 +46,12 @@ def _formatar_envio(envio: dict) -> str:
 
     for i, copy in enumerate(copies, 1):
         full = copy.get("full_copy", "")
+        imagem_png = copy.get("imagem_png", "")
         linhas.append(f"\n  【 VARIAÇÃO {i} 】")
         for linha in full.splitlines():
             linhas.append(f"      {linha}")
+        if imagem_png:
+            linhas.append(f"\n  📸 Imagem: {imagem_png}")
 
     if dica:
         linhas += [
@@ -104,6 +107,7 @@ def verificar_e_exibir() -> int:
         print("━" * 60)
         print("  Use `python main.py --chat` para conversar com a Alina sobre esses copies.")
         print("  Use `python main.py --analisar foto.jpg` para analisar o resultado de campanha.")
+        print("  Para ver as imagens aqui no chat: use o Read tool nos caminhos 📸 acima.")
         print("━" * 60)
         print()
 
