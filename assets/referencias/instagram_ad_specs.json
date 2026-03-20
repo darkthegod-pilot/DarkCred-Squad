@@ -1,0 +1,46 @@
+{
+  "fonte": "Instagram Advertiser Specs 2025 + Meta Ads Guide",
+  "formato": {
+    "feed_quadrado": {
+      "w": 1080,
+      "h": 1080,
+      "ratio": "1:1"
+    },
+    "feed_retrato": {
+      "w": 1080,
+      "h": 1350,
+      "ratio": "4:5"
+    },
+    "stories": {
+      "w": 1080,
+      "h": 1920,
+      "ratio": "9:16"
+    }
+  },
+  "limites_texto": {
+    "max_pct_area": 20,
+    "primeira_linha": 125,
+    "headline_chars": 40,
+    "descricao_chars": 30
+  },
+  "safe_zones_px": {
+    "top": 130,
+    "bottom": 220,
+    "sides": 50
+  },
+  "compliance_visual": {
+    "proibido": [
+      "R$ + valor numérico",
+      "percentual de juros (%)",
+      "aprovado / garantido / imediato",
+      "sem consulta SPC/Serasa",
+      "pessoas em sofrimento financeiro"
+    ],
+    "permitido": [
+      "comerciante feliz/confiante em ambiente de trabalho",
+      "capital de giro / sem burocracia",
+      "moedas douradas genéricas",
+      "texto com termos aprovados DarkCred"
+    ]
+  }
+}

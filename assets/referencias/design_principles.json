@@ -1,0 +1,73 @@
+{
+  "fonte": "Pesquisa: Google Fonts, Figma Community, Smashing Magazine Fintech 2025",
+  "tipografia": {
+    "headline_px": {
+      "min": 72,
+      "ideal": 88,
+      "max": 108
+    },
+    "subhead_px": {
+      "min": 40,
+      "ideal": 52,
+      "max": 64
+    },
+    "corpo_px": {
+      "min": 28,
+      "ideal": 36,
+      "max": 44
+    },
+    "cta_px": {
+      "min": 34,
+      "ideal": 42,
+      "max": 52
+    },
+    "contraste_min_ratio": 4.5,
+    "max_linhas_hook": 3,
+    "max_chars_primeira_linha": 80
+  },
+  "composicao": {
+    "margem_min_px": 56,
+    "safe_zone_top_pct": 0.12,
+    "safe_zone_bot_pct": 0.08,
+    "max_texto_area_pct": 0.2,
+    "thumb_stop_zone": "top 33% must have strong visual anchor"
+  },
+  "fontes_por_tier": {
+    "display": [
+      "Montserrat-Black",
+      "BebasNeue-Regular",
+      "Poppins-Bold"
+    ],
+    "bold": [
+      "Montserrat-ExtraBold",
+      "Inter-Bold",
+      "Poppins-Bold"
+    ],
+    "semibold": [
+      "Inter-Bold",
+      "Montserrat-ExtraBold",
+      "Poppins-SemiBold"
+    ],
+    "regular": [
+      "Inter-Regular",
+      "Poppins-Regular"
+    ]
+  },
+  "pares_tipograficos": [
+    {
+      "headline": "Montserrat-Black",
+      "corpo": "Inter-Bold",
+      "estilo": "forte e moderno — fintech padrão"
+    },
+    {
+      "headline": "BebasNeue-Regular",
+      "corpo": "Inter-Regular",
+      "estilo": "editorial e impactante — para segmentos dinâmicos"
+    },
+    {
+      "headline": "Montserrat-ExtraBold",
+      "corpo": "Inter-Regular",
+      "estilo": "equilibrado e profissional — genérico seguro"
+    }
+  ]
+}

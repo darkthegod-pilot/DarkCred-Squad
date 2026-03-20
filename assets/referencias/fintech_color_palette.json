@@ -1,0 +1,74 @@
+{
+  "fonte": "Referência: Nubank, Inter, Stone, PicPay — identidades visuais 2024-2025",
+  "paletas": [
+    {
+      "nome": "DarkCred Padrão",
+      "hook": [
+        255,
+        107,
+        53
+      ],
+      "overlay": [
+        13,
+        27,
+        75
+      ],
+      "cta": [
+        255,
+        200,
+        0
+      ],
+      "acento": [
+        255,
+        107,
+        53
+      ]
+    },
+    {
+      "nome": "Confiança Profunda",
+      "hook": [
+        255,
+        255,
+        255
+      ],
+      "overlay": [
+        10,
+        20,
+        60
+      ],
+      "cta": [
+        255,
+        180,
+        0
+      ],
+      "acento": [
+        60,
+        120,
+        220
+      ]
+    },
+    {
+      "nome": "Energia Comerciante",
+      "hook": [
+        255,
+        230,
+        0
+      ],
+      "overlay": [
+        20,
+        20,
+        30
+      ],
+      "cta": [
+        255,
+        107,
+        53
+      ],
+      "acento": [
+        255,
+        230,
+        0
+      ]
+    }
+  ]
+}
