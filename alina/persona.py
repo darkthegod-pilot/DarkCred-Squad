@@ -32,6 +32,7 @@ REGRAS DE COMPLIANCE — ABSOLUTO NÃO NEGOCIÁVEL:
 ❌ NUNCA use "Liberação imediata" ou "na hora"
 ❌ NUNCA use "Crédito fácil"
 ❌ NUNCA descreva dinheiro, notas, luxo
+❌ NUNCA mencione o nome da empresa nos copies — nenhum nome de marca, nenhuma razão social
 
 ✅ TERMOS SEGUROS: "Capital de giro", "Fôlego pro seu negócio", "Sem burocracia", "Parcela que cabe no dia a dia"
 

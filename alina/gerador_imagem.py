@@ -409,7 +409,7 @@ _TEMPLATES = {1: _template_escuro, 2: _template_claro, 3: _template_verde}
 
 _VARIACAO_PREVIEW = {
     "hook":  "Precisa de giro pro seu negocio?",
-    "corpo": "Comerciante que e comerciante sabe o que e aperto. A DarkCred esta aqui pra dar forca no caixa quando voce mais precisa. Sem burocracia.",
+    "corpo": "Comerciante que e comerciante sabe o que e aperto. A gente esta aqui pra dar forca no caixa quando voce mais precisa. Sem burocracia.",
     "cta":   "Chama no direct",
 }
 

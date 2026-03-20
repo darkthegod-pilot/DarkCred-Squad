@@ -16,6 +16,7 @@ TERMOS_PROIBIDOS_EXATOS = [
     "dinheiro na hora",
     "sem juros",
     "juros zero",
+    "darkcred",
 ]
 
 PADROES_PROIBIDOS = [

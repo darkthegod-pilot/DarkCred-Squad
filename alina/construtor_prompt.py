@@ -45,6 +45,7 @@ Contexto do segmento — incorpore naturalmente, sem forçar todos:
 {exemplos_str}
 
 IMPORTANTE: Copies genéricos funcionam melhor. Foque no problema universal do comerciante (falta de capital, estoque, fornecedor).
+PROIBIDO: Nunca mencione o nome da empresa, marca ou razão social em nenhum copy. Os copies não devem identificar quem está anunciando.
 
 Retorne EXATAMENTE {n_variacoes} variações como um array JSON válido. Nenhum texto antes ou depois.
 Cada elemento deve ter:
