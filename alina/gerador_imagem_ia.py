@@ -630,39 +630,47 @@ def _compor_texto(img, variacao, layout, dd) -> "Image.Image":
 # Prompts GPT-image-1
 # ─────────────────────────────────────────────────────────────
 
+# Descrição feminina base — eslava, elegante, enérgica
+# Usada em todos os segmentos que têm mulher como modelo.
+_MULHER_ESLAVA = [
+    "a strikingly elegant Slavic woman in her late 20s, porcelain skin, sharp cheekbones, vivid blue eyes, glossy hair, radiant confident smile, upright poised posture",
+    "a gorgeous Slavic woman in her early 30s, high cheekbones, light eyes, perfectly groomed, luminous complexion, warm magnetic smile, effortlessly chic",
+    "a beautiful Slavic woman in her 30s, striking facial features, bright eyes, smooth fair skin, elegant relaxed expression, stylish and vibrant energy",
+    "a stunning Slavic woman, refined bone structure, expressive light eyes, glowing skin, natural elegance, genuinely joyful and lively expression",
+]
+
 _CENAS: dict[str, list[str]] = {
     "generico": [
-        "a strikingly beautiful Brazilian woman in her 30s, small business owner, stylish casual outfit, radiant warm smile, shop interior background with soft bokeh",
+        "{mulher}, small business owner, stylish minimalist outfit, blurred modern shop interior, golden hour bokeh",
         "a handsome Brazilian man in his late 20s, confident entrepreneur, clean modern outfit, bright genuine smile, blurred store background",
-        "a gorgeous Brazilian woman in her 40s, successful merchant, elegant simple attire, strong warm expression, professional workspace background",
-        "a charming Brazilian man in his 30s, arms lightly crossed, merchant apron over stylish shirt, charismatic smile, blurred shop shelves background",
-        "a beautiful young Brazilian woman entrepreneur, natural glow, minimal jewelry, light-filled business interior, confident relaxed pose",
+        "{mulher}, successful merchant, elegant simple blouse, professional workspace background in warm bokeh",
+        "a charming Brazilian man in his 30s, merchant apron over stylish shirt, charismatic smile, blurred shop shelves background",
     ],
     "padaria": [
-        "a beautiful Brazilian woman baker in her 30s, crisp white apron, holding a perfect golden bread loaf, warm bakery light, radiant smile",
+        "{mulher}, pristine white baker's apron, holding a perfect golden artisan bread loaf, warm amber bakery glow behind her",
         "a handsome Brazilian man baker, strong forearms, flour-dusted apron, artisan bread in background, golden amber bakery lighting",
-        "a gorgeous Brazilian woman pastry chef, elegant apron, showcase of golden pastries behind her, warm glowing light, proud expression",
+        "{mulher}, elegant baker, showcase of golden pastries softly blurred behind her, warm glowing bakery light",
     ],
     "pizzaria": [
         "a strikingly handsome Brazilian pizza chef, strong jawline, rolling dough confidently, wood-fired oven glow behind him, dynamic energy",
-        "a beautiful Brazilian woman pizzeria owner, chef whites, vibrant smile, colorful pizzas visible in blurred background, warm orange light",
+        "{mulher}, crisp chef whites, vibrant smile, colorful artisan pizzas in blurred background, warm cinematic orange light",
         "a charismatic Brazilian man in his late 30s, pizzeria owner, casual chef attire, tossing pizza dough playfully, cinematic warm light",
     ],
     "lanchonete": [
-        "a vibrant beautiful Brazilian woman snack bar owner, colorful counter background, energetic confident pose, warm smile, blurred food displays",
+        "{mulher}, snack bar owner, bright neat casual outfit, energetic confident pose, colorful counter blurred behind",
         "a handsome lively Brazilian man at lanchonete counter, bright casual uniform, charming smile, colorful menu boards in soft bokeh",
     ],
     "restaurante": [
-        "a stunning Brazilian woman restaurant owner in her 40s, elegant simple dress, warm dining room background in soft focus, graceful welcoming gesture",
+        "{mulher}, restaurant owner, elegant simple dress, warmly lit dining room in cinematic soft focus, graceful welcoming expression",
         "a distinguished handsome Brazilian man restaurateur, well-groomed, smart casual attire, warmly lit dining room bokeh, confident calm expression",
     ],
     "acai": [
-        "a beautiful young Brazilian woman açaí shop owner, fresh natural look, colorful bowls and toppings blurred behind her, vibrant healthy energy",
+        "{mulher}, açaí shop owner, fresh vibrant style, colorful bowls and toppings blurred behind her, healthy energetic glow",
         "a handsome Brazilian man açaí shop attendant, bright smile, athletic casual style, vivid purple and green bokeh background",
     ],
     "salao": [
-        "a strikingly beautiful Brazilian hairstylist in her 30s, chic personal style, modern salon mirrors and chairs in soft bokeh, professional confident pose",
-        "a gorgeous Brazilian woman salon owner, immaculate hair, elegant outfit, warm salon lighting, radiant professional smile",
+        "{mulher}, hair salon owner, impeccably styled hair, chic personal fashion, modern salon mirrors in warm bokeh, poised professional confidence",
+        "{mulher}, hairstylist, elegant updo, stylish minimalist outfit, blurred salon chairs and mirrors, radiant professional smile",
         "a handsome Brazilian male hairstylist, modern groomed look, stylish casual clothes, blurred salon interior, charming relaxed expression",
     ],
     "barbearia": [
@@ -670,37 +678,42 @@ _CENAS: dict[str, list[str]] = {
         "a charismatic young Brazilian barber, tattooed forearms, holding scissors elegantly, vintage barbershop interior in warm bokeh",
     ],
     "manicure": [
-        "a beautiful Brazilian nail technician, impeccably done nails, elegant minimal style, bright nail studio bokeh background, warm genuine smile",
-        "a gorgeous Brazilian woman manicurist in her 30s, colorful nail polish display softly blurred behind her, professional radiant look",
+        "{mulher}, nail technician, impeccably manicured hands, elegant minimal outfit, bright modern nail studio bokeh, warm genuine smile",
+        "{mulher}, nail studio owner, colorful polish display softly blurred behind her, professional polished look, bright energy",
     ],
     "estetica": [
-        "a strikingly beautiful Brazilian aesthetics specialist, flawless skin, clean white uniform, modern studio background in soft focus, calm professional smile",
-        "a gorgeous Brazilian woman esthetician in her 30s, elegant clinic attire, spa-like studio environment in warm bokeh, serene confident expression",
+        "{mulher}, aesthetics specialist, flawless glowing skin, clean white clinic uniform, modern spa studio in soft focus, serene confident smile",
+        "{mulher}, esthetician, elegant clinic attire, warm spa-like bokeh environment, calm self-assured expression",
     ],
     "academia": [
         "a fit handsome Brazilian gym owner, athletic build, casual sporty outfit, well-equipped gym equipment blurred behind, energetic confident smile",
-        "a beautiful athletic Brazilian woman gym owner, strong graceful posture, modern fitness center in soft bokeh, motivational radiant expression",
+        "{mulher}, gym owner, athletic graceful posture, stylish sportswear, modern fitness center in soft bokeh, motivational radiant energy",
     ],
     "vestuario": [
-        "a stylish beautiful Brazilian clothing boutique owner, naturally fashionable outfit, colorful garment racks in warm bokeh, poised confident smile",
+        "{mulher}, clothing boutique owner, naturally fashionable outfit, colorful garment racks in warm bokeh, poised confident smile",
         "a handsome stylish Brazilian man clothing store owner, well-dressed, racks of clothes softly blurred, sophisticated relaxed expression",
     ],
     "mercadinho": [
-        "a warm trustworthy beautiful Brazilian neighborhood market owner, casual neat attire, stocked colorful shelves in soft bokeh, genuine welcoming smile",
+        "{mulher}, neighborhood market owner, neat casual attire, stocked colorful shelves softly blurred, genuine warm welcoming smile",
         "a handsome reliable Brazilian market owner in his 40s, strong honest expression, market interior warmly lit in background",
     ],
     "mecanico": [
         "a handsome confident Brazilian auto mechanic, clean work uniform, organized professional workshop blurred behind, strong capable expression",
-        "a beautiful capable Brazilian woman mechanic, confident stance, professional workshop tools in warm bokeh, charming strong smile",
+        "{mulher}, auto mechanic, confident capable stance, clean work outfit, professional workshop tools in warm bokeh",
     ],
 }
 
 
 def _escolher_cena(segmento_key: str) -> str:
-    """Seleciona aleatoriamente um perfil de modelo para o segmento."""
+    """Sorteia um perfil de modelo; substitui {mulher} por uma descrição eslava aleatória."""
     import random
     opcoes = _CENAS.get(segmento_key, _CENAS["generico"])
-    return random.choice(opcoes)
+    cena   = random.choice(opcoes)
+    if "{mulher}" in cena:
+        cena = cena.replace("{mulher}", random.choice(_MULHER_ESLAVA))
+    return cena
+
+
 
 _LAYOUT_COMPOSITION = {
     "TIPOGRAFIA_FORTE":      "subject in upper-right third, lower 55% must be very dark navy (#0D1B4B) for text overlay",
