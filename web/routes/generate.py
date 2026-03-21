@@ -48,7 +48,7 @@ async def generate_copy(
         from alina.config import SEGMENTOS
 
         seg_info = SEGMENTOS.get(segmento, SEGMENTOS.get("generico", {}))
-        ctx      = construir_contexto_aprendizado(segmento)
+        ctx      = construir_contexto_aprendizado()
 
         variacoes = await asyncio.to_thread(
             gerar_variacoes, segmento, seg_info, ctx, quantidade
