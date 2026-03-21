@@ -1,15 +1,42 @@
 {% extends "base.html" %}
-{% block title %}Gerar Copies{% endblock %}
+{% block title %}Gerar Criativo{% endblock %}
+
+{% block head %}
+<style>
+/* ── Animações do painel de geração ── */
+.btn-gerar .btn-label        { display:inline; }
+.btn-gerar .btn-working      { display:none; }
+.btn-gerar.htmx-request .btn-label   { display:none; }
+.btn-gerar.htmx-request .btn-working { display:inline-flex; align-items:center; gap:8px; }
+
+.working-dots span {
+  display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:var(--bg); opacity:.4; animation:wd 1.2s infinite;
+}
+.working-dots span:nth-child(2) { animation-delay:.2s; }
+.working-dots span:nth-child(3) { animation-delay:.4s; }
+@keyframes wd { 0%,60%,100%{opacity:.3;transform:scale(1)} 30%{opacity:1;transform:scale(1.3)} }
+
+.btn-amber:hover { box-shadow: 0 0 20px rgba(255,175,30,0.35); }
+
+/* Pulse no card enquanto espera resultado */
+.aguardando { animation: pulseCard 1.5s ease-in-out infinite; }
+@keyframes pulseCard {
+  0%,100% { opacity:1; }
+  50%     { opacity:.6; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
 <div style="margin-bottom:24px">
-  <h1 class="page-title">Gerar Copies</h1>
-  <p class="page-sub">Alina + Vera criam variações de copy para o público escolhido. Depois, gere a imagem direto de cada variação.</p>
+  <h1 class="page-title">🎨 Estúdio de Criativo</h1>
+  <p class="page-sub">Alina + Vera criam as copies. Depois, Dasha gera o visual. Tudo com IA.</p>
 </div>
 
-<div class="generate-grid" style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start">
+<div class="generate-grid">
 
-  <!-- ── Painel de configuração (sticky) ───────────────────── -->
+  <!-- ── Painel esquerdo (sticky) ──────────────────────────── -->
   <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
     <h2>⚙️ Configurações</h2>
 
@@ -17,9 +44,9 @@
       hx-post="/generate/copy"
       hx-target="#resultado"
       hx-swap="innerHTML"
-      hx-indicator="#gerar-spin"
       style="display:flex;flex-direction:column;gap:14px"
     >
+      <!-- Público-alvo -->
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label">Público-alvo</label>
         <select name="segmento" class="form-select">
@@ -29,38 +56,101 @@
         </select>
       </div>
 
+      <!-- Quantidade -->
       <div class="form-group" x-data="{ qty: 3 }" style="margin-bottom:0">
         <label class="form-label">
           Variações: <span style="color:var(--amber);font-weight:700" x-text="qty"></span>
         </label>
-        <input type="range" name="quantidade" min="1" max="8" x-model.number="qty"
+        <input type="range" name="quantidade" min="1" max="8"
+               x-model.number="qty"
                style="width:100%;accent-color:var(--amber);margin-top:4px">
         <input type="hidden" name="quantidade" :value="qty">
       </div>
 
-      <button type="submit" class="btn btn-amber" style="width:100%;justify-content:center;padding:12px">
-        <span id="gerar-spin" class="htmx-indicator">
-          <span class="spinner"></span>
+      <!-- Instruções extras (colapsível) -->
+      <div x-data="{ open: false }" style="border:1px solid var(--borda);border-radius:8px;overflow:hidden">
+        <button type="button"
+                @click="open = !open"
+                style="width:100%;display:flex;justify-content:space-between;align-items:center;
+                       padding:10px 12px;background:var(--card2);border:none;cursor:pointer;
+                       color:var(--cinza);font-size:12px;font-weight:600">
+          <span>💬 Instruções extras</span>
+          <span style="font-size:10px;opacity:.6" x-text="open ? 'recolher ▲' : 'opcional ▼'"></span>
+        </button>
+        <div x-show="open" x-transition style="padding:10px">
+          <textarea name="dicas"
+                    class="form-textarea"
+                    rows="3"
+                    placeholder="Ex: foque em urgência, mencione Black Friday, tom mais direto, público feminino 35-50..."
+                    style="min-height:72px;font-size:12px;margin-bottom:0"></textarea>
+          <div style="font-size:10px;color:var(--cinza);margin-top:4px">
+            Alina vai priorizar essas instruções acima de tudo
+          </div>
+        </div>
+      </div>
+
+      <!-- Botão Gerar -->
+      <button type="submit" class="btn btn-amber btn-gerar"
+              style="width:100%;justify-content:center;padding:13px;font-size:14px">
+        <span class="btn-label">✍️ Gerar Copies</span>
+        <span class="btn-working">
+          <span class="spinner" style="width:14px;height:14px;border-color:rgba(0,0,0,0.2);border-top-color:var(--bg)"></span>
+          <span id="working-msg">Alina preparando...</span>
+          <span class="working-dots"><span></span><span></span><span></span></span>
         </span>
-        ✍️ Gerar Copies
       </button>
     </form>
 
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--borda);font-size:12px;color:var(--cinza);line-height:1.5">
-      💡 Após gerar as variações, clique em <strong style="color:var(--amber)">🎨 Gerar Imagem</strong> em qualquer card para criar o criativo visual.
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--borda);
+                font-size:11px;color:var(--cinza);line-height:1.6">
+      💡 Após gerar, clique em <strong style="color:var(--amber)">🖼 Gerar Imagem</strong> em qualquer variação para criar o criativo visual com Dasha.
     </div>
   </div>
 
-  <!-- ── Área de resultado ────────────────────────────────── -->
+  <!-- ── Área de resultado ─────────────────────────────────── -->
   <div>
     <div id="resultado">
-      <div style="padding:60px 24px;text-align:center;color:var(--cinza);background:var(--card);border:1px solid var(--borda);border-radius:12px">
-        <div style="font-size:48px;margin-bottom:16px">✍️</div>
-        <div style="font-size:15px;font-weight:600;color:var(--branco);margin-bottom:8px">Pronto para criar</div>
-        <div style="font-size:13px">Escolha o público-alvo e clique em <strong style="color:var(--amber)">Gerar Copies</strong></div>
+      <div style="padding:64px 24px;text-align:center;background:var(--card);
+                  border:1px dashed var(--borda2);border-radius:12px">
+        <div style="font-size:52px;margin-bottom:16px;opacity:.7">✍️</div>
+        <div style="font-size:16px;font-weight:700;color:var(--branco);margin-bottom:8px">
+          Pronto para criar
+        </div>
+        <div style="font-size:13px;color:var(--cinza)">
+          Escolha o público e clique em <strong style="color:var(--amber)">Gerar Copies</strong>
+        </div>
       </div>
     </div>
   </div>
 
 </div>
+
+{% block scripts %}
+<script>
+// Rotaciona mensagens durante loading
+const msgs = [
+  "Alina preparando briefing...",
+  "Vera criando hooks...",
+  "Ajustando copy...",
+  "Aplicando compliance...",
+  "Finalizando variações..."
+];
+let _interval = null;
+document.body.addEventListener('htmx:beforeRequest', function(e) {
+  if (!e.target.closest('form[hx-target="#resultado"]')) return;
+  const el = document.getElementById('working-msg');
+  if (!el) return;
+  let i = 0;
+  _interval = setInterval(function() {
+    i++;
+    el.textContent = msgs[i % msgs.length];
+  }, 2200);
+});
+document.body.addEventListener('htmx:afterRequest', function() {
+  if (_interval) { clearInterval(_interval); _interval = null; }
+  const el = document.getElementById('working-msg');
+  if (el) el.textContent = 'Alina preparando...';
+});
+</script>
+{% endblock %}
 {% endblock %}

@@ -12,7 +12,7 @@ from alina.aprendizado import (
 )
 
 
-def construir_mensagens_geracao(segmento_key: str, n_variacoes: int) -> tuple[str, list[dict]]:
+def construir_mensagens_geracao(segmento_key: str, n_variacoes: int, dicas: str = "") -> tuple[str, list[dict]]:
     """
     Constrói system prompt + mensagens para geração de copies.
     Inclui anti-repetição de hooks e injeção de hooks campeões do segmento.
@@ -52,9 +52,13 @@ def construir_mensagens_geracao(segmento_key: str, n_variacoes: int) -> tuple[st
         lista_recentes = "\n".join(f'  ✗ "{h}"' for h in recentes[:5])
         extra_evitar = f"\n\nHOOKS JÁ USADOS RECENTEMENTE (não repita esses exatos):\n{lista_recentes}"
 
+    extra_dicas = ""
+    if dicas and dicas.strip():
+        extra_dicas = f"\n\nINSTRUÇÕES ADICIONAIS DO GESTOR (prioridade máxima — siga à risca):\n{dicas.strip()}\n"
+
     mensagem_usuario = f"""Gere {n_variacoes} variações de copy para anúncio Instagram (feed estático 1:1) para: {segmento['label']}.
 
-Público: {segmento['contexto']}.{extra_aprendizado}{extra_tops}{extra_evitar}
+Público: {segmento['contexto']}.{extra_aprendizado}{extra_tops}{extra_evitar}{extra_dicas}
 
 Termos seguros — use ao menos um por copy:
 {termos_str}

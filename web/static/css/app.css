@@ -88,15 +88,16 @@ body {
   display: flex;
   flex-direction: column;
   padding: 16px 0 24px;
-  /* Mobile: oculta por padrão, Alpine.js mostra via :style */
+  /* Oculta por padrão (mobile) — JS e Alpine abrem via .sidebar-open */
   transform: translateX(-100%);
   transition: transform 0.25s ease;
 }
-/* Desktop: sidebar sempre visível */
+.sidebar.sidebar-open {
+  transform: translateX(0);
+}
+/* Desktop: sidebar sempre visível via JS (fixSidebar) + CSS fallback */
 @media (min-width: 1024px) {
-  .sidebar {
-    transform: translateX(0) !important;
-  }
+  .sidebar { transform: translateX(0); }
 }
 
 .sidebar-section-label {
@@ -222,14 +223,22 @@ td { font-size: 12px; color: var(--branco); padding: 8px 10px; border-bottom: 1p
   border: none;
   cursor: pointer;
   text-decoration: none;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.2s;
 }
 .btn:hover { opacity: 0.88; transform: translateY(-1px); }
-.btn:active { transform: translateY(0); }
+.btn:active { transform: translateY(0); opacity: 1; }
 .btn-amber  { background: var(--amber); color: var(--bg); }
+.btn-amber:hover { box-shadow: 0 0 18px rgba(255,175,30,0.4); }
 .btn-ghost  { background: var(--card2); color: var(--branco); border: 1px solid var(--borda); }
+.btn-ghost:hover { border-color: var(--borda2); }
 .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
 .btn-sm     { padding: 6px 12px; font-size: 12px; }
+
+/* Botão Gerar com estados */
+.btn-gerar .btn-label   { display: inline; }
+.btn-gerar .btn-working { display: none; }
+.btn-gerar.htmx-request .btn-label   { display: none; }
+.btn-gerar.htmx-request .btn-working { display: inline-flex; align-items: center; gap: 8px; }
 
 /* ── Form elements ── */
 .form-group { margin-bottom: 16px; }
@@ -591,8 +600,8 @@ td { font-size: 12px; color: var(--branco); padding: 8px 10px; border-bottom: 1p
 
 /* ── Generate page grid ── */
 .generate-grid { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: start; }
-@media (max-width: 768px) {
-  .generate-grid { grid-template-columns: 1fr !important; }
+@media (max-width: 900px) {
+  .generate-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Typography ── */

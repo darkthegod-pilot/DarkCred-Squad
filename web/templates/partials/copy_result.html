@@ -1,15 +1,20 @@
 {% if variacoes %}
-<div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-  <span class="badge badge-amber">{{ variacoes | length }} variações</span>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+  <span class="badge badge-green">✅ {{ variacoes | length }} variações geradas</span>
   <span class="badge badge-violet">{{ seg_label or segmento }}</span>
-  <span style="font-size:12px;color:var(--cinza);margin-left:auto">Clique em 🎨 para gerar a imagem de cada copy</span>
+  <span style="font-size:11px;color:var(--cinza);margin-left:auto">
+    Clique em 🖼 para criar o criativo visual de cada copy
+  </span>
 </div>
 
 {% for v in variacoes %}
-<div class="copy-card" style="margin-bottom:16px">
-  <!-- Header: ângulo + score -->
+<div class="copy-card" style="margin-bottom:18px" id="card-{{ loop.index }}">
+
+  <!-- Header -->
   <div class="copy-card-header" style="margin-bottom:12px">
-    <span class="badge badge-violet">{{ v.angulo or v.get('angulo_psicologico', 'copy') }}</span>
+    <span class="badge badge-violet">
+      {{ v.get('angulo') or v.get('angulo_psicologico') or 'copy ' ~ loop.index }}
+    </span>
     {% if v.score %}
     <span class="badge {% if v.score >= 8 %}badge-green{% elif v.score >= 7 %}badge-amber{% else %}badge-red{% endif %}">
       {{ '%.1f' | format(v.score) }}/10
@@ -18,11 +23,11 @@
   </div>
 
   {% if v.hook %}
-  <div class="copy-hook" style="margin-bottom:8px">{{ v.hook }}</div>
+  <div class="copy-hook">{{ v.hook }}</div>
   {% endif %}
 
   {% if v.corpo %}
-  <div class="copy-corpo" style="margin-bottom:10px">{{ v.corpo }}</div>
+  <div class="copy-corpo">{{ v.corpo }}</div>
   {% endif %}
 
   {% if v.cta %}
@@ -32,35 +37,113 @@
   {% endif %}
 
   {% if v.justificativa %}
-  <div style="font-size:11px;color:var(--cinza);padding:8px 0;border-top:1px solid var(--borda);margin-bottom:12px">
+  <div style="font-size:11px;color:var(--cinza);padding-bottom:12px;border-bottom:1px solid var(--borda)">
     {{ v.justificativa }}
   </div>
   {% endif %}
 
-  <!-- Botão Gerar Imagem -->
-  <div style="border-top:1px solid var(--borda);padding-top:12px">
-    <form
-      hx-post="/generate/image"
-      hx-target="#img-result-{{ loop.index }}"
-      hx-swap="innerHTML"
-      hx-indicator="#img-spin-{{ loop.index }}"
-    >
+  <!-- Seção: Gerar Imagem -->
+  <div style="padding-top:12px" x-data="{ showRef: false, loading: false }">
+
+    <!-- Toggle foto referência -->
+    <div style="margin-bottom:8px">
+      <button type="button"
+              @click="showRef = !showRef"
+              style="background:none;border:none;color:var(--cinza);font-size:11px;
+                     cursor:pointer;padding:0;display:flex;align-items:center;gap:4px">
+        <span x-text="showRef ? '▲' : '📎'"></span>
+        <span x-text="showRef ? 'Ocultar referência' : 'Adicionar foto de referência (opcional)'"></span>
+      </button>
+      <div x-show="showRef" x-transition style="margin-top:8px;padding:10px;
+           background:var(--card3);border-radius:8px;border:1px solid var(--borda)">
+        <label style="font-size:11px;color:var(--cinza);display:block;margin-bottom:6px">
+          🖼 Foto de referência de design
+        </label>
+        <input type="file" id="ref-file-{{ loop.index }}"
+               accept="image/*"
+               style="font-size:11px;color:var(--cinza);width:100%">
+        <div style="font-size:10px;color:var(--cinza2);margin-top:4px">
+          Dasha vai usar o estilo visual desta imagem como inspiração
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Gerar Imagem -->
+    <form id="form-img-{{ loop.index }}"
+          hx-post="/generate/image"
+          hx-target="#img-result-{{ loop.index }}"
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data"
+          @submit="loading = true"
+          @htmx:after-request.camel="loading = false">
+
       <input type="hidden" name="segmento" value="{{ segmento }}">
-      <input type="hidden" name="hook"     value="{{ v.hook or '' }}">
-      <input type="hidden" name="corpo"    value="{{ v.corpo or '' }}">
-      <input type="hidden" name="cta"      value="{{ v.cta or '' }}">
-      <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center">
-        <span id="img-spin-{{ loop.index }}" class="htmx-indicator"><span class="spinner"></span></span>
-        🎨 Gerar Imagem para esta variação
+      <input type="hidden" name="hook"     value="{{ v.hook or '' | e }}">
+      <input type="hidden" name="corpo"    value="{{ v.corpo or '' | e }}">
+      <input type="hidden" name="cta"      value="{{ v.cta or '' | e }}">
+
+      <button type="submit"
+              class="btn btn-ghost btn-sm"
+              style="width:100%;justify-content:center;gap:8px;padding:10px"
+              :disabled="loading"
+              :style="loading ? 'opacity:.7;cursor:not-allowed' : ''">
+
+        <!-- Estado normal -->
+        <template x-if="!loading">
+          <span>🖼 Gerar Imagem com Dasha</span>
+        </template>
+
+        <!-- Estado loading com mensagens rotativas -->
+        <template x-if="loading">
+          <span style="display:flex;align-items:center;gap:8px">
+            <span class="spinner" style="width:13px;height:13px"></span>
+            <span x-text="imgMsg{{ loop.index }}"></span>
+          </span>
+        </template>
       </button>
     </form>
-    <div id="img-result-{{ loop.index }}" style="margin-top:10px"></div>
+
+    <!-- Resultado da imagem -->
+    <div id="img-result-{{ loop.index }}" style="margin-top:12px"></div>
   </div>
 </div>
 {% endfor %}
 
 {% else %}
 <div class="alert alert-error">
-  <strong>⚠️ Nenhuma variação gerada.</strong> Tente novamente ou escolha outro público-alvo.
+  <strong>⚠️ Nenhuma variação gerada.</strong>
+  Tente novamente ou escolha outro público-alvo.
 </div>
 {% endif %}
+
+<script>
+// Mensagens rotativas para cada card de imagem
+{% for v in variacoes %}
+(function() {
+  var msgs = [
+    "Dasha escolhendo layout...",
+    "GPT-image gerando fundo...",
+    "Alina revisando qualidade...",
+    "Aplicando tipografia...",
+    "Fazendo upload..."
+  ];
+  var i = 0;
+  var key = 'imgMsg{{ loop.index }}';
+  // Define reactive var no Alpine via window (workaround para dinamismo)
+  window['_imgInterval{{ loop.index }}'] = null;
+  document.getElementById('form-img-{{ loop.index }}')
+    .addEventListener('submit', function() {
+      i = 0;
+      var el = document.querySelector('#form-img-{{ loop.index }} [x-text]');
+      window['_imgInterval{{ loop.index }}'] = setInterval(function() {
+        i++;
+        if (el) el.textContent = msgs[i % msgs.length];
+      }, 2500);
+    });
+  document.getElementById('form-img-{{ loop.index }}')
+    .addEventListener('htmx:afterRequest', function() {
+      clearInterval(window['_imgInterval{{ loop.index }}']);
+    });
+})();
+{% endfor %}
+</script>

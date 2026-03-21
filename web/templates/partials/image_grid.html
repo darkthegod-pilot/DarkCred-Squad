@@ -1,5 +1,5 @@
 {% if images %}
-<div class="img-grid">
+<div class="img-grid" id="img-grid-wrap">
   {% for img in images %}
   <div class="img-card" id="img-{{ img.filename | replace('.', '-') }}">
     <img src="/images/{{ img.filename }}" alt="{{ img.segment }}" loading="lazy">
@@ -8,8 +8,13 @@
       <div class="img-card-date">{{ img.date }} · {{ img.size_kb }} KB</div>
     </div>
     <div class="img-overlay">
+      <!-- Fix: usa onclick com JS puro para evitar conflito de aspas do tojson em attr Alpine -->
       <button class="btn btn-ghost btn-sm"
-              @click.stop="$dispatch('open-img', {{ img | tojson }})"
+              onclick="dcOpenImg(this)"
+              data-filename="{{ img.filename }}"
+              data-segment="{{ img.segment }}"
+              data-size="{{ img.size_kb }}"
+              data-date="{{ img.date }}"
               style="font-size:12px">
         🔍 Ver
       </button>
@@ -26,8 +31,9 @@
   {% endfor %}
 </div>
 <div style="margin-top:12px;font-size:12px;color:var(--cinza)">{{ total }} imagens</div>
+
 {% else %}
-<div style="padding:60px;text-align:center;color:var(--cinza)">
+<div id="img-grid-wrap" style="padding:60px;text-align:center;color:var(--cinza)">
   <div style="font-size:48px;margin-bottom:12px">📸</div>
   <div>Nenhuma imagem encontrada.</div>
   <div style="font-size:12px;margin-top:8px">
@@ -35,3 +41,16 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+function dcOpenImg(btn) {
+  window.dispatchEvent(new CustomEvent('open-img', {
+    detail: {
+      filename: btn.dataset.filename,
+      segment:  btn.dataset.segment,
+      size_kb:  btn.dataset.size,
+      date:     btn.dataset.date
+    }
+  }));
+}
+</script>

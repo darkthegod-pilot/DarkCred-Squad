@@ -128,13 +128,14 @@ def gerar_variacoes(
     segmento_key: str,
     n: int,
     modelo: str = "claude-sonnet-4-6",
+    dicas: str = "",
 ) -> list[dict]:
     """
     Gera N variações de copy para o segmento informado.
     Tenta Claude primeiro; se indisponível, usa GPT-4.1 automaticamente.
     """
     log.info(f"Iniciando geração: segmento={segmento_key}, n={n}, modelo={modelo}")
-    system, mensagens = construir_mensagens_geracao(segmento_key, n)
+    system, mensagens = construir_mensagens_geracao(segmento_key, n, dicas=dicas)
 
     # — Tenta Claude —
     api_key = os.environ.get("ANTHROPIC_API_KEY")

@@ -331,9 +331,10 @@ def _sortear_layout(segmento: str, tentativa: int) -> str:
 # ─────────────────────────────────────────────────────────────
 
 def executar_pipeline(
-    variacao:  dict,
-    segmento:  str  = "generico",
-    verbose:   bool = True,
+    variacao:        dict,
+    segmento:        str  = "generico",
+    verbose:         bool = True,
+    foto_referencia: str  = "",
 ) -> PipelineResult:
     """
     Executa o pipeline completo de criativo com revisão automática.
@@ -396,6 +397,7 @@ def executar_pipeline(
             segmento_key=segmento,
             layout=layout,
             melhorias=melhorias_acumuladas,
+            foto_referencia=foto_referencia,
         )
 
         if verbose:

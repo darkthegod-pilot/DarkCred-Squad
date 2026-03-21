@@ -19,8 +19,8 @@
   <!-- HTMX -->
   <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
 
-  <!-- Alpine.js (carrega antes do render para evitar flash) -->
-  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+  <!-- Alpine.js -->
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
 
   {% block head %}{% endblock %}
 </head>
@@ -29,8 +29,7 @@
   <!-- ── Topbar ─────────────────────────────────────── -->
   <header class="topbar">
     <button class="hamburger" @click="sidebarOpen = !sidebarOpen" aria-label="Menu">
-      <span x-show="!sidebarOpen">☰</span>
-      <span x-show="sidebarOpen" style="display:none">✕</span>
+      ☰
     </button>
 
     <a href="/dashboard" class="topbar-logo">DarkCred</a>
@@ -50,8 +49,8 @@
   </div>
 
   <!-- ── Sidebar ──────────────────────────────────── -->
-  <nav class="sidebar"
-       :style="sidebarOpen ? 'transform:translateX(0)' : ''">
+  <nav class="sidebar" id="main-sidebar"
+       :class="sidebarOpen ? 'sidebar-open' : ''">
 
     <!-- Navegação Principal -->
     <div class="sidebar-section-label">Navegação</div>
@@ -59,7 +58,7 @@
       <span class="icon">🏠</span> Dashboard
     </a>
     <a href="/generate" class="sidebar-link {% if request.url.path.startswith('/generate') %}active{% endif %}">
-      <span class="icon">✍️</span> Gerar Copies
+      <span class="icon">🎨</span> Estúdio de Criativo
     </a>
     <a href="/gallery" class="sidebar-link {% if request.url.path.startswith('/gallery') %}active{% endif %}">
       <span class="icon">📸</span> Banco de Imagens
@@ -122,6 +121,20 @@
   <main class="main-content" @click="sidebarOpen = false">
     {% block content %}{% endblock %}
   </main>
+
+  <!-- Garante sidebar visível no desktop (sem depender do Alpine) -->
+  <script>
+    (function() {
+      var sb = document.getElementById('main-sidebar');
+      function fixSidebar() {
+        if (window.innerWidth >= 1024) {
+          sb.classList.add('sidebar-open');
+        }
+      }
+      fixSidebar();
+      window.addEventListener('resize', fixSidebar);
+    })();
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

@@ -851,12 +851,13 @@ def _redimensionar_para_formato(img: "Image.Image", formato: str) -> "Image.Imag
 # ─────────────────────────────────────────────────────────────
 
 def gerar_criativo_ia(
-    variacao:     dict,
-    segmento_key: str  = "generico",
-    layout:       str  = "TIPOGRAFIA_FORTE",
-    melhorias:    list = None,
-    template:     Optional[int] = None,  # ignorado — compat. retroativa
-    formato:      str  = "quadrado",     # quadrado | feed_vertical | stories
+    variacao:        dict,
+    segmento_key:    str  = "generico",
+    layout:          str  = "TIPOGRAFIA_FORTE",
+    melhorias:       list = None,
+    template:        Optional[int] = None,  # ignorado — compat. retroativa
+    formato:         str  = "quadrado",     # quadrado | feed_vertical | stories
+    foto_referencia: str  = "",             # caminho opcional de imagem de referência
 ) -> str:
     """
     Gera criativo com GPT-image-1 + overlay tipográfico profissional.
@@ -889,7 +890,13 @@ def gerar_criativo_ia(
     dd = DesignDecision.from_melhorias(melhorias or [])
 
     # Constrói prompt + gera fundo via GPT-image-1
-    prompt         = _construir_prompt_ia(variacao, segmento_key, layout, melhorias)
+    prompt = _construir_prompt_ia(variacao, segmento_key, layout, melhorias)
+    if foto_referencia and Path(foto_referencia).exists():
+        prompt += (
+            " STYLE REFERENCE: The client provided a reference image. "
+            "Replicate its color palette, mood, lighting style and overall visual tone "
+            "while keeping the composition optimized for Instagram ads."
+        )
     tamanho_gpt    = _GPT_TAMANHO.get(formato, "1024x1024")
     raw            = _gerar_fundo(prompt, tamanho_gpt)
     img            = Image.open(_io.BytesIO(raw)).convert("RGB")

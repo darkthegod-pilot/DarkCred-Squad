@@ -365,9 +365,9 @@ LIMITE_CARACTERES_HOOK = 80
 # SCORE ADAPTATIVO — mínimo de aprovação visual sobe com experiência
 # ─────────────────────────────────────────────────────────────
 
-SCORE_MINIMO_INICIAL    = 7.5   # até 9 gerações acumuladas
-SCORE_MINIMO_EXPERIENTE = 8.0   # 10–24 gerações acumuladas
-SCORE_MINIMO_SENIOR     = 8.5   # 25+ gerações acumuladas
+SCORE_MINIMO_INICIAL    = 8.5   # padrão fixo
+SCORE_MINIMO_EXPERIENTE = 8.5   # padrão fixo
+SCORE_MINIMO_SENIOR     = 8.5   # padrão fixo
 
 
 def score_minimo_aprovacao(total_geracoes: int) -> float:
