@@ -3,66 +3,78 @@
 
 {% block head %}
 <style>
-  /* Override main padding for full-height chat */
-  .main-content { padding: 20px 24px 0; display: flex; flex-direction: column; }
+  /* Força altura total sem scroll no main — chat ocupa tudo */
+  .main-content {
+    height: calc(100vh - var(--topbar-h)) !important;
+    min-height: unset !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    display: flex;
+    flex-direction: column;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Agent header -->
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--borda)">
-  <div class="chat-agent-avatar" style="width:44px;height:44px;font-size:18px;background:var(--{{ agent.cor }});color:var(--bg)">
-    {{ agent.inicial }}
-  </div>
-  <div>
-    <div style="font-size:16px;font-weight:700;color:var(--branco)">{{ agent.nome }}</div>
-    <div style="font-size:12px;color:var(--cinza)">{{ agent.titulo }}</div>
-  </div>
-  <div style="margin-left:auto;display:flex;gap:8px">
-    <form hx-post="/agents/{{ agent.id }}/clear" hx-target="body" hx-push-url="true"
-          style="display:inline">
-      <button type="submit" class="btn btn-ghost btn-sm" title="Limpar conversa">
-        🗑 Limpar
-      </button>
-    </form>
-  </div>
-</div>
-
-<!-- Chat area -->
 <div class="chat-wrap" x-data="chatApp('{{ agent.id }}')" x-init="init()">
+
+  <!-- ── Agent Header ── -->
+  <div class="chat-header">
+    <div class="chat-header-avatar">
+      <div class="chat-header-avatar-inner" style="background:var(--{{ agent.cor }})">
+        {{ agent.inicial }}
+      </div>
+      <div class="chat-header-status"></div>
+    </div>
+
+    <div class="chat-header-info">
+      <div class="chat-header-name">{{ agent.nome }}</div>
+      <div class="chat-header-role">{{ agent.titulo }}</div>
+    </div>
+
+    <div class="chat-header-actions">
+      <form hx-post="/agents/{{ agent.id }}/clear" hx-target="body" hx-push-url="true" style="display:inline">
+        <button type="submit" class="btn btn-ghost btn-sm" title="Limpar conversa">
+          🗑 Limpar
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Messages ── -->
   <div class="chat-messages" id="chat-messages" x-ref="messages">
 
     {% if not history %}
-    <div style="text-align:center;padding:32px;color:var(--cinza)">
-      <div style="font-size:32px;margin-bottom:12px">
-        {% if agent.cor == 'amber' %}🎯{% elif agent.cor == 'rose' %}✍️{% elif agent.cor == 'violet' %}🎨{% elif agent.cor == 'emerald' %}📊{% else %}📈{% endif %}
+    <div class="chat-empty">
+      <div class="chat-empty-icon">
+        {% if agent.cor == 'amber' %}🎯
+        {% elif agent.cor == 'rose' %}✍️
+        {% elif agent.cor == 'violet' %}🎨
+        {% elif agent.cor == 'emerald' %}📊
+        {% else %}📈{% endif %}
       </div>
-      <div style="font-size:14px">Olá! Sou <strong style="color:var(--{{ agent.cor }})">{{ agent.nome }}</strong>.</div>
-      <div style="font-size:12px;margin-top:6px">{{ agent.titulo }}</div>
-      <div style="font-size:12px;margin-top:12px">Como posso ajudar?</div>
+      <div class="chat-empty-name">{{ agent.nome }}</div>
+      <div style="font-size:12px;color:var(--cinza)">{{ agent.titulo }}</div>
+      <div class="chat-empty-sub">Como posso ajudar você hoje?</div>
     </div>
     {% endif %}
 
-    <!-- Histórico de mensagens -->
+    <!-- Histórico -->
     {% for msg in history %}
     <div class="chat-bubble-wrap {% if msg.role == 'user' %}user{% endif %}">
       {% if msg.role == 'assistant' %}
-      <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">{{ agent.inicial }}</div>
+      <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">
+        {{ agent.inicial }}
+      </div>
       {% endif %}
       <div class="chat-bubble {% if msg.role == 'user' %}user{% else %}agent{% endif %}">{{ msg.content }}</div>
     </div>
     {% endfor %}
 
-    <!-- Balão do agente em construção (SSE) -->
-    <div id="agent-typing" style="display:none" class="chat-bubble-wrap">
-      <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">{{ agent.inicial }}</div>
-      <div class="chat-bubble agent" id="agent-bubble"></div>
-    </div>
-
     <!-- Indicador de digitando -->
     <div id="typing-indicator" style="display:none" class="chat-bubble-wrap">
       <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">{{ agent.inicial }}</div>
-      <div class="chat-bubble agent" style="padding:12px 16px">
+      <div class="chat-bubble agent" style="padding:14px 18px;display:flex;align-items:center;gap:4px">
         <span class="typing-dot"></span>
         <span class="typing-dot"></span>
         <span class="typing-dot"></span>
@@ -70,27 +82,40 @@
     </div>
   </div>
 
-  <!-- Input bar -->
+  <!-- ── Input bar ── -->
   <div class="chat-input-bar">
-    <textarea
-      class="chat-input"
-      id="chat-input"
-      placeholder="Digite sua mensagem… (Enter para enviar, Shift+Enter para quebrar linha)"
-      rows="1"
-      x-model="userMsg"
-      @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
-      @input="autoResize($el)"
-    ></textarea>
-    <button class="chat-send-btn" @click="sendMessage()" :disabled="sending">
-      <span x-show="!sending">➤</span>
-      <span x-show="sending" class="spinner" style="border-color:var(--bg);border-top-color:var(--bg);width:18px;height:18px"></span>
+    <div class="chat-input-wrap">
+      <textarea
+        class="chat-input"
+        id="chat-input"
+        placeholder="Mensagem para {{ agent.nome }}… (Enter envia, Shift+Enter quebra linha)"
+        rows="1"
+        x-model="userMsg"
+        @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
+        @input="autoResize($el)"
+      ></textarea>
+    </div>
+    <button class="chat-send-btn" @click="sendMessage()" :disabled="sending" title="Enviar">
+      <span x-show="!sending">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </span>
+      <span x-show="sending">
+        <div class="spinner" style="border-color:rgba(0,0,0,0.2);border-top-color:var(--bg);width:18px;height:18px"></div>
+      </span>
     </button>
   </div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const AGENT_COR     = '{{ agent.cor }}';
+const AGENT_INICIAL = '{{ agent.inicial }}';
+
 function chatApp(agentId) {
   return {
     userMsg: '',
@@ -98,23 +123,27 @@ function chatApp(agentId) {
     eventSource: null,
 
     init() {
-      this.scrollBottom();
+      // Scroll imediato ao carregar histórico (sem nextTick para evitar flash)
+      const el = document.getElementById('chat-messages');
+      if (el) el.scrollTop = el.scrollHeight;
     },
 
     scrollBottom() {
-      this.$nextTick(() => {
-        const el = this.$refs.messages;
-        if (el) el.scrollTop = el.scrollHeight;
-      });
+      const el = document.getElementById('chat-messages');
+      if (el) el.scrollTop = el.scrollHeight;
     },
 
     autoResize(el) {
       el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+      el.style.height = Math.min(el.scrollHeight, 140) + 'px';
     },
 
     addUserBubble(text) {
       const messages = document.getElementById('chat-messages');
+      // Remove estado vazio se existir
+      const empty = messages.querySelector('.chat-empty');
+      if (empty) empty.remove();
+
       const wrap = document.createElement('div');
       wrap.className = 'chat-bubble-wrap user';
       const bubble = document.createElement('div');
@@ -122,6 +151,7 @@ function chatApp(agentId) {
       bubble.textContent = text;
       wrap.appendChild(bubble);
       messages.appendChild(wrap);
+      this.scrollBottom();
     },
 
     sendMessage() {
@@ -131,48 +161,43 @@ function chatApp(agentId) {
       this.sending = true;
       this.userMsg = '';
 
-      // Reset textarea
       const input = document.getElementById('chat-input');
-      if (input) { input.style.height = 'auto'; }
+      if (input) input.style.height = 'auto';
 
-      // Mostra mensagem do usuário
       this.addUserBubble(msg);
 
-      // Mostra indicador de digitando
       document.getElementById('typing-indicator').style.display = 'flex';
       this.scrollBottom();
 
-      // Abre SSE
       const url = `/agents/${agentId}/stream?msg=${encodeURIComponent(msg)}`;
       this.eventSource = new EventSource(url);
 
       let agentBubble = null;
-      let agentWrap   = null;
       let firstChunk  = true;
       let fullText    = '';
 
       this.eventSource.onmessage = (e) => {
         if (firstChunk) {
-          // Esconde indicador, cria balão do agente
           document.getElementById('typing-indicator').style.display = 'none';
-          agentWrap = document.createElement('div');
+
+          const messages = document.getElementById('chat-messages');
+          const agentWrap = document.createElement('div');
           agentWrap.className = 'chat-bubble-wrap';
 
           const avatar = document.createElement('div');
           avatar.className = 'chat-agent-avatar';
-          avatar.style.cssText = `background:var(--${agentId === 'alina' ? 'amber' : ''}); color:var(--bg)`;
-          avatar.textContent = '{{ agent.inicial }}';
+          avatar.style.cssText = `background:var(--${AGENT_COR});color:var(--bg)`;
+          avatar.textContent = AGENT_INICIAL;
           agentWrap.appendChild(avatar);
 
           agentBubble = document.createElement('div');
           agentBubble.className = 'chat-bubble agent';
           agentWrap.appendChild(agentBubble);
 
-          document.getElementById('chat-messages').appendChild(agentWrap);
+          messages.appendChild(agentWrap);
           firstChunk = false;
         }
 
-        // Decodifica \\n → newline
         const chunk = e.data.replace(/\\n/g, '\n');
         fullText += chunk;
         agentBubble.textContent = fullText;
@@ -191,22 +216,18 @@ function chatApp(agentId) {
         this.sending = false;
         document.getElementById('typing-indicator').style.display = 'none';
         if (!agentBubble) {
-          this.addErrorBubble();
+          const messages = document.getElementById('chat-messages');
+          const wrap = document.createElement('div');
+          wrap.className = 'chat-bubble-wrap';
+          const bubble = document.createElement('div');
+          bubble.className = 'chat-bubble agent';
+          bubble.style.color = 'var(--red)';
+          bubble.textContent = 'Erro ao conectar com o agente. Verifique a API key.';
+          wrap.appendChild(bubble);
+          messages.appendChild(wrap);
         }
       };
     },
-
-    addErrorBubble() {
-      const messages = document.getElementById('chat-messages');
-      const wrap = document.createElement('div');
-      wrap.className = 'chat-bubble-wrap';
-      const bubble = document.createElement('div');
-      bubble.className = 'chat-bubble agent';
-      bubble.style.color = 'var(--red)';
-      bubble.textContent = 'Erro ao conectar com o agente. Verifique a API key.';
-      wrap.appendChild(bubble);
-      messages.appendChild(wrap);
-    }
   };
 }
 </script>
