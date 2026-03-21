@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 from web.auth import _LoginRequired
 from web.routes import dashboard, agents, gallery, generate, analyze
 from web.routes.auth_routes import router as auth_router
+from web.routes.webhook import router as webhook_router
 
 app = FastAPI(title="DarkCred Agency", docs_url=None, redoc_url=None)
 
@@ -38,6 +39,7 @@ app.include_router(agents.router)
 app.include_router(gallery.router)
 app.include_router(generate.router)
 app.include_router(analyze.router)
+app.include_router(webhook_router)   # auto-deploy via git push
 
 # ── Raiz ────────────────────────────────────────────────────────────────────
 @app.get("/")
