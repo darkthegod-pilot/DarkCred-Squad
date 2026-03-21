@@ -25,6 +25,9 @@ from web.routes.webhook import router as webhook_router
 
 app = FastAPI(title="DarkCred Agency", docs_url=None, redoc_url=None)
 
+# ── Garante que diretórios de saída existem ─────────────────────────────────
+(ROOT / "saidas" / "imagens").mkdir(parents=True, exist_ok=True)
+
 # ── Arquivos estáticos ──────────────────────────────────────────────────────
 app.mount("/static",  StaticFiles(directory=str(ROOT / "web" / "static")),         name="static")
 app.mount("/images",  StaticFiles(directory=str(ROOT / "saidas" / "imagens")),      name="images")
