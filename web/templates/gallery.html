@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Banco de Imagens{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:20px">
+  <h1 class="page-title">Banco de Imagens</h1>
+  <p class="page-sub">{{ total }} criativos gerados</p>
+</div>
+
+<!-- Filtro por segmento -->
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px" x-data>
+  <a href="/gallery"
+     class="pill {% if not seg_filter %}active{% endif %}">
+    Todos ({{ total }})
+  </a>
+  {% for seg in segments %}
+  <a href="/gallery?seg={{ seg }}"
+     class="pill {% if seg_filter == seg %}active{% endif %}">
+    {{ seg }}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Grid de imagens -->
+<div id="img-grid-wrap"
+     hx-trigger="galleryUpdated from:body"
+     hx-get="/gallery/filter?seg={{ seg_filter }}"
+     hx-target="#img-grid-wrap"
+     hx-swap="outerHTML">
+  {% include "partials/image_grid.html" %}
+</div>
+
+<!-- Modal de detalhes (Alpine) -->
+<div x-data="{ open: false, img: {}, url: '' }"
+     @open-img.window="open = true; img = $event.detail; url = '/images/' + img.filename"
+     x-show="open"
+     class="modal-overlay"
+     @click.self="open = false"
+     style="display:none"
+     x-transition>
+  <div class="modal-box">
+    <div class="modal-close">
+      <button @click="open = false" class="btn btn-ghost btn-sm">✕ Fechar</button>
+    </div>
+    <img :src="url" style="width:100%;border-radius:10px;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div>
+        <div class="td-amber" style="font-size:14px;font-weight:700" x-text="img.filename"></div>
+        <div class="td-muted" style="font-size:12px;margin-top:4px">
+          <span x-text="img.segment"></span> ·
+          <span x-text="img.size_kb + ' KB'"></span> ·
+          <span x-text="img.date"></span>
+        </div>
+      </div>
+      <a :href="url" download class="btn btn-amber btn-sm">⬇ Download</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

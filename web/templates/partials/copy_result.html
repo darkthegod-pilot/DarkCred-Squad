@@ -1,0 +1,41 @@
+{% if variacoes %}
+<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+  <span class="badge badge-amber">{{ variacoes | length }} variações — {{ segmento }}</span>
+</div>
+
+{% for v in variacoes %}
+<div class="copy-card">
+  <div class="copy-card-header">
+    <span class="badge badge-violet">{{ v.angulo or v.get('angulo_psicologico', 'copy') }}</span>
+    {% if v.score %}
+    <span class="badge {% if v.score >= 8 %}badge-green{% elif v.score >= 7 %}badge-amber{% else %}badge-red{% endif %}">
+      {{ '%.1f' | format(v.score) }}/10
+    </span>
+    {% endif %}
+  </div>
+
+  {% if v.hook %}
+  <div class="copy-hook">{{ v.hook }}</div>
+  {% endif %}
+
+  {% if v.corpo %}
+  <div class="copy-corpo">{{ v.corpo }}</div>
+  {% endif %}
+
+  {% if v.cta %}
+  <div class="copy-cta">CTA: <strong style="color:var(--amber)">{{ v.cta }}</strong></div>
+  {% endif %}
+
+  {% if v.justificativa %}
+  <div style="font-size:11px;color:var(--cinza);margin-top:8px;padding-top:8px;border-top:1px solid var(--borda)">
+    {{ v.justificativa }}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% else %}
+<div class="alert alert-error">
+  Nenhuma variação gerada. Tente novamente.
+</div>
+{% endif %}

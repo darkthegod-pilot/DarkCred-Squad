@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DarkCred{% endblock %} — Painel</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap">
+
+  <!-- Tailwind + DaisyUI via CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/app.css">
+
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
+
+  <!-- Alpine.js -->
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+  {% block head %}{% endblock %}
+</head>
+<body x-data="{ sidebarOpen: false }">
+
+  <!-- ── Topbar ─────────────────────────────────────── -->
+  <header class="topbar">
+    <button class="hamburger" @click="sidebarOpen = !sidebarOpen" aria-label="Menu">
+      <span x-show="!sidebarOpen">☰</span>
+      <span x-show="sidebarOpen">✕</span>
+    </button>
+
+    <a href="/dashboard" class="topbar-logo">DarkCred</a>
+
+    <div class="topbar-spacer"></div>
+
+    <span class="topbar-user-name">Alina Pretrov</span>
+    <div class="topbar-avatar" title="Alina Pretrov">A</div>
+  </header>
+
+  <!-- ── Sidebar overlay (mobile) ─────────────────── -->
+  <div class="sidebar-overlay"
+       x-show="sidebarOpen"
+       x-transition.opacity
+       @click="sidebarOpen = false"
+       style="display:none">
+  </div>
+
+  <!-- ── Sidebar ──────────────────────────────────── -->
+  <nav class="sidebar"
+       :style="sidebarOpen ? 'transform:translateX(0)' : ''"
+       style="transform: translateX(-100%)"
+       x-init="$watch('sidebarOpen', v => { if(window.innerWidth >= 1024) return })">
+
+    <!-- Navegação Principal -->
+    <div class="sidebar-section-label">Navegação</div>
+    <a href="/dashboard" class="sidebar-link {% if request.url.path == '/dashboard' %}active{% endif %}">
+      <span class="icon">🏠</span> Dashboard
+    </a>
+    <a href="/generate" class="sidebar-link {% if request.url.path.startswith('/generate') %}active{% endif %}">
+      <span class="icon">✍️</span> Gerar Copies
+    </a>
+    <a href="/gallery" class="sidebar-link {% if request.url.path.startswith('/gallery') %}active{% endif %}">
+      <span class="icon">📸</span> Banco de Imagens
+    </a>
+    <a href="/analyze" class="sidebar-link {% if request.url.path.startswith('/analyze') %}active{% endif %}">
+      <span class="icon">📊</span> Analisar Campanha
+    </a>
+
+    <hr class="sidebar-divider">
+
+    <!-- Escritório -->
+    <div class="sidebar-section-label">Escritório</div>
+
+    <a href="/agents/alina" class="sidebar-link {% if request.url.path == '/agents/alina' %}active{% endif %}">
+      <div class="agent-avatar amber">A</div>
+      <div>
+        <div style="font-size:13px">Alina Pretrov</div>
+        <div style="font-size:10px;color:var(--cinza)">Diretora Criativa</div>
+      </div>
+    </a>
+    <a href="/agents/vera" class="sidebar-link {% if request.url.path == '/agents/vera' %}active{% endif %}">
+      <div class="agent-avatar rose">V</div>
+      <div>
+        <div style="font-size:13px">Vera Kozlova</div>
+        <div style="font-size:10px;color:var(--cinza)">Copywriter</div>
+      </div>
+    </a>
+    <a href="/agents/dasha" class="sidebar-link {% if request.url.path == '/agents/dasha' %}active{% endif %}">
+      <div class="agent-avatar violet">D</div>
+      <div>
+        <div style="font-size:13px">Dasha Volkov</div>
+        <div style="font-size:10px;color:var(--cinza)">Designer Visual</div>
+      </div>
+    </a>
+    <a href="/agents/mila" class="sidebar-link {% if request.url.path == '/agents/mila' %}active{% endif %}">
+      <div class="agent-avatar emerald">M</div>
+      <div>
+        <div style="font-size:13px">Mila Sorokina</div>
+        <div style="font-size:10px;color:var(--cinza)">Performance</div>
+      </div>
+    </a>
+    <a href="/agents/igor" class="sidebar-link {% if request.url.path == '/agents/igor' %}active{% endif %}">
+      <div class="agent-avatar sky">I</div>
+      <div>
+        <div style="font-size:13px">Igor Petrov</div>
+        <div style="font-size:10px;color:var(--cinza)">Media Planner</div>
+      </div>
+    </a>
+
+    <hr class="sidebar-divider" style="margin-top:auto">
+
+    <!-- Sistema -->
+    <div class="sidebar-section-label">Sistema</div>
+    <a href="/logout" class="sidebar-link" style="color:var(--red)">
+      <span class="icon">🚪</span> Sair
+    </a>
+  </nav>
+
+  <!-- ── Main Content ─────────────────────────────── -->
+  <main class="main-content" @click="sidebarOpen = false">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Fix sidebar always visible on desktop -->
+  <script>
+    function fixSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      if (window.innerWidth >= 1024) {
+        sidebar.style.transform = 'translateX(0)';
+      }
+    }
+    fixSidebar();
+    window.addEventListener('resize', fixSidebar);
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

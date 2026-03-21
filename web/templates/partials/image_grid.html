@@ -1,0 +1,37 @@
+{% if images %}
+<div class="img-grid">
+  {% for img in images %}
+  <div class="img-card" id="img-{{ img.filename | replace('.', '-') }}">
+    <img src="/images/{{ img.filename }}" alt="{{ img.segment }}" loading="lazy">
+    <div class="img-card-body">
+      <div class="img-card-seg">{{ img.segment }}</div>
+      <div class="img-card-date">{{ img.date }} · {{ img.size_kb }} KB</div>
+    </div>
+    <div class="img-overlay">
+      <button class="btn btn-ghost btn-sm"
+              @click.stop="$dispatch('open-img', {{ img | tojson }})"
+              style="font-size:12px">
+        🔍 Ver
+      </button>
+      <button class="btn btn-danger btn-sm"
+              hx-delete="/gallery/{{ img.filename }}"
+              hx-target="#img-{{ img.filename | replace('.', '-') }}"
+              hx-swap="outerHTML"
+              hx-confirm="Deletar {{ img.filename }}?"
+              style="font-size:12px">
+        🗑
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div style="margin-top:12px;font-size:12px;color:var(--cinza)">{{ total }} imagens</div>
+{% else %}
+<div style="padding:60px;text-align:center;color:var(--cinza)">
+  <div style="font-size:48px;margin-bottom:12px">📸</div>
+  <div>Nenhuma imagem encontrada.</div>
+  <div style="font-size:12px;margin-top:8px">
+    <a href="/generate" style="color:var(--amber)">Gere criativos</a> para popular o banco.
+  </div>
+</div>
+{% endif %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Analisar Campanha{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px">
+  <h1 class="page-title">Analisar Campanha</h1>
+  <p class="page-sub">Mila Sorokina extrai métricas e diagnóstico de um print de campanha</p>
+</div>
+
+<div style="display:grid;grid-template-columns:360px 1fr;gap:24px;align-items:start">
+
+  <!-- Upload -->
+  <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
+    <h2>📤 Upload da imagem</h2>
+
+    <form
+      hx-post="/analyze"
+      hx-target="#resultado"
+      hx-swap="innerHTML"
+      hx-indicator="#analyze-spin"
+      hx-encoding="multipart/form-data"
+      x-data="dropzone()"
+      @dragover.prevent="dragover = true"
+      @dragleave="dragover = false"
+      @drop.prevent="handleDrop($event)"
+    >
+      <!-- Drop zone -->
+      <div class="dropzone" :class="dragover ? 'dragover' : ''" @click="$refs.fileInput.click()" style="margin-bottom:14px">
+        <template x-if="!preview">
+          <div>
+            <div style="font-size:32px;margin-bottom:8px">📸</div>
+            <div style="font-size:13px;color:var(--cinza)">Arraste o print aqui ou clique para selecionar</div>
+            <div style="font-size:11px;color:var(--cinza2);margin-top:6px">JPG, PNG, WEBP</div>
+          </div>
+        </template>
+        <template x-if="preview">
+          <div>
+            <img :src="preview" style="max-height:200px;max-width:100%;border-radius:8px;object-fit:contain">
+            <div style="font-size:11px;color:var(--amber);margin-top:8px" x-text="fileName"></div>
+          </div>
+        </template>
+      </div>
+
+      <input type="file" name="arquivo" accept=".jpg,.jpeg,.png,.webp,.gif"
+             x-ref="fileInput" @change="handleFile($event)" style="display:none">
+
+      <button type="submit" class="btn btn-amber" style="width:100%;justify-content:center"
+              :disabled="!preview">
+        <span id="analyze-spin" class="htmx-indicator"><span class="spinner"></span></span>
+        📊 Analisar com Mila
+      </button>
+    </form>
+
+    <div class="alert alert-info" style="margin-top:14px">
+      <strong>Dica:</strong> Use prints do Gerenciador de Anúncios do Meta com métricas visíveis
+      (impressões, alcance, CTR, custo por mensagem).
+    </div>
+  </div>
+
+  <!-- Resultado -->
+  <div>
+    <div id="resultado">
+      <div style="padding:40px;text-align:center;color:var(--cinza)">
+        <div style="font-size:40px;margin-bottom:12px">📊</div>
+        <div>Envie um print de campanha para análise da Mila</div>
+        <div style="font-size:12px;margin-top:8px">O diagnóstico aparecerá aqui</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function dropzone() {
+  return {
+    dragover: false,
+    preview: null,
+    fileName: '',
+    handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      this.fileName = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => { this.preview = ev.target.result; };
+      reader.readAsDataURL(file);
+    },
+    handleDrop(e) {
+      this.dragover = false;
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      this.$refs.fileInput.files = e.dataTransfer.files;
+      this.fileName = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => { this.preview = ev.target.result; };
+      reader.readAsDataURL(file);
+    }
+  };
+}
+</script>
+{% endblock %}

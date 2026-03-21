@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DarkCred — Acesso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@900&display=swap">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
+</head>
+<body>
+  <div class="pin-container">
+    <div class="pin-logo">DarkCred</div>
+    <div class="pin-subtitle">Painel do Escritório</div>
+
+    <div class="pin-box">
+      <div style="font-size:13px;color:var(--cinza);margin-bottom:4px;width:100%;text-align:center">
+        Digite o PIN de acesso
+      </div>
+
+      <form
+        hx-post="/login"
+        hx-target="#erro"
+        hx-swap="outerHTML"
+        style="width:100%;display:flex;flex-direction:column;gap:14px"
+      >
+        <input
+          type="password"
+          name="pin"
+          class="pin-input"
+          placeholder="•••••"
+          maxlength="5"
+          autocomplete="off"
+          autofocus
+          inputmode="numeric"
+        >
+        <button type="submit" class="pin-btn">Entrar</button>
+      </form>
+
+      <div id="erro" style="width:100%;text-align:center;min-height:20px">
+        {% if erro %}
+        <p class="text-red-400 text-sm">{{ erro }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="margin-top:32px;font-size:11px;color:var(--cinza2)">
+      DarkCred Agency · Sistema de Criativos
+    </div>
+  </div>
+</body>
+</html>

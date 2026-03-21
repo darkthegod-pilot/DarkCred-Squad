@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}{{ agent.nome }}{% endblock %}
+
+{% block head %}
+<style>
+  /* Override main padding for full-height chat */
+  .main-content { padding: 20px 24px 0; display: flex; flex-direction: column; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Agent header -->
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--borda)">
+  <div class="chat-agent-avatar" style="width:44px;height:44px;font-size:18px;background:var(--{{ agent.cor }});color:var(--bg)">
+    {{ agent.inicial }}
+  </div>
+  <div>
+    <div style="font-size:16px;font-weight:700;color:var(--branco)">{{ agent.nome }}</div>
+    <div style="font-size:12px;color:var(--cinza)">{{ agent.titulo }}</div>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <form hx-post="/agents/{{ agent.id }}/clear" hx-target="body" hx-push-url="true"
+          style="display:inline">
+      <button type="submit" class="btn btn-ghost btn-sm" title="Limpar conversa">
+        🗑 Limpar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Chat area -->
+<div class="chat-wrap" x-data="chatApp('{{ agent.id }}')" x-init="init()">
+  <div class="chat-messages" id="chat-messages" x-ref="messages">
+
+    {% if not history %}
+    <div style="text-align:center;padding:32px;color:var(--cinza)">
+      <div style="font-size:32px;margin-bottom:12px">
+        {% if agent.cor == 'amber' %}🎯{% elif agent.cor == 'rose' %}✍️{% elif agent.cor == 'violet' %}🎨{% elif agent.cor == 'emerald' %}📊{% else %}📈{% endif %}
+      </div>
+      <div style="font-size:14px">Olá! Sou <strong style="color:var(--{{ agent.cor }})">{{ agent.nome }}</strong>.</div>
+      <div style="font-size:12px;margin-top:6px">{{ agent.titulo }}</div>
+      <div style="font-size:12px;margin-top:12px">Como posso ajudar?</div>
+    </div>
+    {% endif %}
+
+    <!-- Histórico de mensagens -->
+    {% for msg in history %}
+    <div class="chat-bubble-wrap {% if msg.role == 'user' %}user{% endif %}">
+      {% if msg.role == 'assistant' %}
+      <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">{{ agent.inicial }}</div>
+      {% endif %}
+      <div class="chat-bubble {% if msg.role == 'user' %}user{% else %}agent{% endif %}">{{ msg.content }}</div>
+    </div>
+    {% endfor %}
+
+    <!-- Balão do agente em construção (SSE) -->
+    <div id="agent-typing" style="display:none" class="chat-bubble-wrap">
+      <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">{{ agent.inicial }}</div>
+      <div class="chat-bubble agent" id="agent-bubble"></div>
+    </div>
+
+    <!-- Indicador de digitando -->
+    <div id="typing-indicator" style="display:none" class="chat-bubble-wrap">
+      <div class="chat-agent-avatar" style="background:var(--{{ agent.cor }});color:var(--bg)">{{ agent.inicial }}</div>
+      <div class="chat-bubble agent" style="padding:12px 16px">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input bar -->
+  <div class="chat-input-bar">
+    <textarea
+      class="chat-input"
+      id="chat-input"
+      placeholder="Digite sua mensagem… (Enter para enviar, Shift+Enter para quebrar linha)"
+      rows="1"
+      x-model="userMsg"
+      @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
+      @input="autoResize($el)"
+    ></textarea>
+    <button class="chat-send-btn" @click="sendMessage()" :disabled="sending">
+      <span x-show="!sending">➤</span>
+      <span x-show="sending" class="spinner" style="border-color:var(--bg);border-top-color:var(--bg);width:18px;height:18px"></span>
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function chatApp(agentId) {
+  return {
+    userMsg: '',
+    sending: false,
+    eventSource: null,
+
+    init() {
+      this.scrollBottom();
+    },
+
+    scrollBottom() {
+      this.$nextTick(() => {
+        const el = this.$refs.messages;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    },
+
+    autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    },
+
+    addUserBubble(text) {
+      const messages = document.getElementById('chat-messages');
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-bubble-wrap user';
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble user';
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      messages.appendChild(wrap);
+    },
+
+    sendMessage() {
+      const msg = this.userMsg.trim();
+      if (!msg || this.sending) return;
+
+      this.sending = true;
+      this.userMsg = '';
+
+      // Reset textarea
+      const input = document.getElementById('chat-input');
+      if (input) { input.style.height = 'auto'; }
+
+      // Mostra mensagem do usuário
+      this.addUserBubble(msg);
+
+      // Mostra indicador de digitando
+      document.getElementById('typing-indicator').style.display = 'flex';
+      this.scrollBottom();
+
+      // Abre SSE
+      const url = `/agents/${agentId}/stream?msg=${encodeURIComponent(msg)}`;
+      this.eventSource = new EventSource(url);
+
+      let agentBubble = null;
+      let agentWrap   = null;
+      let firstChunk  = true;
+      let fullText    = '';
+
+      this.eventSource.onmessage = (e) => {
+        if (firstChunk) {
+          // Esconde indicador, cria balão do agente
+          document.getElementById('typing-indicator').style.display = 'none';
+          agentWrap = document.createElement('div');
+          agentWrap.className = 'chat-bubble-wrap';
+
+          const avatar = document.createElement('div');
+          avatar.className = 'chat-agent-avatar';
+          avatar.style.cssText = `background:var(--${agentId === 'alina' ? 'amber' : ''}); color:var(--bg)`;
+          avatar.textContent = '{{ agent.inicial }}';
+          agentWrap.appendChild(avatar);
+
+          agentBubble = document.createElement('div');
+          agentBubble.className = 'chat-bubble agent';
+          agentWrap.appendChild(agentBubble);
+
+          document.getElementById('chat-messages').appendChild(agentWrap);
+          firstChunk = false;
+        }
+
+        // Decodifica \\n → newline
+        const chunk = e.data.replace(/\\n/g, '\n');
+        fullText += chunk;
+        agentBubble.textContent = fullText;
+        this.scrollBottom();
+      };
+
+      this.eventSource.addEventListener('done', () => {
+        this.eventSource.close();
+        this.sending = false;
+        document.getElementById('typing-indicator').style.display = 'none';
+        this.scrollBottom();
+      });
+
+      this.eventSource.onerror = () => {
+        this.eventSource.close();
+        this.sending = false;
+        document.getElementById('typing-indicator').style.display = 'none';
+        if (!agentBubble) {
+          this.addErrorBubble();
+        }
+      };
+    },
+
+    addErrorBubble() {
+      const messages = document.getElementById('chat-messages');
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-bubble-wrap';
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble agent';
+      bubble.style.color = 'var(--red)';
+      bubble.textContent = 'Erro ao conectar com o agente. Verifique a API key.';
+      wrap.appendChild(bubble);
+      messages.appendChild(wrap);
+    }
+  };
+}
+</script>
+{% endblock %}

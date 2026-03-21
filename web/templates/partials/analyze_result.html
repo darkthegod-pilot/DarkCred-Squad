@@ -1,0 +1,86 @@
+{% if resultado %}
+{% set m = resultado.get('metricas_extraidas', {}) %}
+{% set diag = resultado.get('diagnostico', '') %}
+{% set acoes = resultado.get('acoes_recomendadas', []) %}
+
+<div class="card" style="margin-bottom:12px">
+  <h2>📊 Diagnóstico de Mila Sorokina</h2>
+
+  <!-- Métricas extraídas -->
+  {% if m %}
+  <div class="grid-kpi" style="margin-bottom:16px">
+    {% if m.get('custo_mensagem') %}
+    {% set c = m.custo_mensagem %}
+    <div class="card kpi {% if c < 1.5 %}green{% endif %}" style="padding:12px">
+      <div class="kpi-label">Custo/Mensagem</div>
+      <div class="kpi-value {% if c < 1.5 %}metric-excelente{% elif c < 2.5 %}metric-bom{% elif c < 3.5 %}metric-aceitavel{% elif c < 5 %}metric-ruim{% else %}metric-pausar{% endif %}" style="font-size:22px">
+        R$ {{ '%.2f' | format(c) }}
+      </div>
+      <div class="kpi-sub">
+        {% if c < 1.5 %}Excelente{% elif c < 2.5 %}Bom{% elif c < 3.5 %}Aceitável{% elif c < 5 %}Otimizar{% else %}PAUSAR{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if m.get('ctr') %}
+    {% set ctr = m.ctr %}
+    <div class="card kpi" style="padding:12px">
+      <div class="kpi-label">CTR</div>
+      <div class="kpi-value {% if ctr > 1.5 %}metric-excelente{% elif ctr > 0.8 %}metric-bom{% elif ctr > 0.5 %}metric-aceitavel{% else %}metric-ruim{% endif %}" style="font-size:22px">
+        {{ '%.2f' | format(ctr) }}%
+      </div>
+    </div>
+    {% endif %}
+
+    {% if m.get('frequencia') %}
+    {% set freq = m.frequencia %}
+    <div class="card kpi" style="padding:12px">
+      <div class="kpi-label">Frequência</div>
+      <div class="kpi-value {% if freq < 1.5 %}metric-excelente{% elif freq < 2.0 %}metric-bom{% elif freq < 2.5 %}metric-aceitavel{% else %}metric-ruim{% endif %}" style="font-size:22px">
+        {{ '%.1f' | format(freq) }}
+      </div>
+      <div class="kpi-sub">{% if freq > 2.5 %}Saturado!{% endif %}</div>
+    </div>
+    {% endif %}
+
+    {% if m.get('impressoes') %}
+    <div class="card kpi" style="padding:12px">
+      <div class="kpi-label">Impressões</div>
+      <div class="kpi-value" style="font-size:22px">{{ '{:,}'.format(m.impressoes | int).replace(',', '.') }}</div>
+    </div>
+    {% endif %}
+
+    {% if m.get('cpm') %}
+    <div class="card kpi" style="padding:12px">
+      <div class="kpi-label">CPM</div>
+      <div class="kpi-value" style="font-size:22px">R$ {{ '%.2f' | format(m.cpm) }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Diagnóstico -->
+  {% if diag %}
+  <div style="margin-bottom:16px">
+    <div style="font-size:11px;color:var(--cinza);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Diagnóstico</div>
+    <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">{{ diag }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Ações recomendadas -->
+  {% if acoes %}
+  <div>
+    <div style="font-size:11px;color:var(--cinza);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Ações recomendadas</div>
+    {% for acao in acoes %}
+    <div style="display:flex;gap:10px;margin-bottom:8px;padding:10px 12px;background:var(--card2);border-radius:8px;font-size:13px">
+      <span style="color:var(--amber);font-weight:700">{{ loop.index }}.</span>
+      <span>{{ acao }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="alert alert-error">Erro ao processar a análise. Verifique o arquivo e tente novamente.</div>
+{% endif %}

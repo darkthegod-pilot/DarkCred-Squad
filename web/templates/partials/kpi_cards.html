@@ -1,0 +1,32 @@
+<div class="grid-kpi" id="kpi-grid">
+  <div class="card kpi">
+    <div class="kpi-label">Gerações totais</div>
+    <div class="kpi-value">{{ total_geracoes }}</div>
+    <div class="kpi-sub">{{ n_semana }} esta semana</div>
+  </div>
+  <div class="card kpi green">
+    <div class="kpi-label">Aprovados (semana)</div>
+    <div class="kpi-value">{{ aprovados_semana }}</div>
+    <div class="kpi-sub">{{ n_semana }} sessões</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-label">Campanhas analisadas</div>
+    <div class="kpi-value">{{ total_analises }}</div>
+    <div class="kpi-sub">resultados com Mila</div>
+  </div>
+  <div class="card kpi gray">
+    <div class="kpi-label">Custo médio/msg</div>
+    <div class="kpi-value">{{ custo_medio }}</div>
+    <div class="kpi-sub">benchmark: R$1,50</div>
+  </div>
+  <div class="card kpi gray">
+    <div class="kpi-label">Frequência média</div>
+    <div class="kpi-value">{{ freq_media }}</div>
+    <div class="kpi-sub">saturação: &gt;2.5</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-label">Segmentos ativos</div>
+    <div class="kpi-value">{{ segmentos_ativos | length }}</div>
+    <div class="kpi-sub">de 35+ disponíveis</div>
+  </div>
+</div>

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px">
+  <h1 class="page-title">Dashboard</h1>
+  <p class="page-sub">Visão geral do escritório DarkCred</p>
+</div>
+
+<!-- KPI Grid -->
+<div class="grid-kpi" id="kpi-grid">
+  <div class="card kpi">
+    <div class="kpi-label">Gerações totais</div>
+    <div class="kpi-value">{{ total_geracoes }}</div>
+    <div class="kpi-sub">{{ n_semana }} esta semana</div>
+  </div>
+  <div class="card kpi green">
+    <div class="kpi-label">Aprovados (semana)</div>
+    <div class="kpi-value">{{ aprovados_semana }}</div>
+    <div class="kpi-sub">{{ n_semana }} sessões</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-label">Campanhas analisadas</div>
+    <div class="kpi-value">{{ total_analises }}</div>
+    <div class="kpi-sub">resultados com Mila</div>
+  </div>
+  <div class="card kpi gray">
+    <div class="kpi-label">Custo médio/msg</div>
+    <div class="kpi-value">{{ custo_medio }}</div>
+    <div class="kpi-sub">benchmark: R$1,50</div>
+  </div>
+  <div class="card kpi gray">
+    <div class="kpi-label">Frequência média</div>
+    <div class="kpi-value">{{ freq_media }}</div>
+    <div class="kpi-sub">saturação: &gt;2.5</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-label">Segmentos ativos</div>
+    <div class="kpi-value">{{ segmentos_ativos | length }}</div>
+    <div class="kpi-sub">de 35+ disponíveis</div>
+  </div>
+</div>
+
+<!-- Hooks + Gerações recentes -->
+<div class="grid-2" style="margin-bottom:16px">
+  <!-- Top Hooks -->
+  <div class="card">
+    <h2>⭐ Hooks com melhor score</h2>
+    {% if top_hooks %}
+      {% for hook, score, pct in top_hooks %}
+      <div class="hook-bar-wrap">
+        <div class="hook-bar-label" title="{{ hook }}">"{{ hook[:55] }}{% if hook|length > 55 %}…{% endif %}"</div>
+        <div class="hook-bar-track">
+          <div class="hook-bar-fill" style="width:{{ pct }}%"></div>
+        </div>
+        <div class="hook-bar-score">+{{ score }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="color:var(--cinza);font-size:13px;padding:12px 0">
+        Nenhum hook registrado ainda. Gere copies para acumular dados.
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Segmentos ativos -->
+  <div class="card">
+    <h2>🗂 Segmentos usados</h2>
+    {% if segmentos_ativos %}
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+        {% for seg in segmentos_ativos %}
+        <a href="/gallery?seg={{ seg }}" class="pill">{{ seg }}</a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="color:var(--cinza);font-size:13px;padding:8px 0">
+        Nenhum segmento ativo ainda.
+      </div>
+    {% endif %}
+
+    {% if padroes_venc %}
+    <h2 style="margin-top:16px">✅ Padrões vencedores</h2>
+    <ul style="list-style:none;padding:0;margin:0">
+      {% for p in padroes_venc %}
+      <li style="font-size:12px;color:var(--cinza);padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)">{{ p }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if padroes_evitar %}
+    <h2 style="margin-top:16px">❌ Padrões a evitar</h2>
+    <ul style="list-style:none;padding:0;margin:0">
+      {% for p in padroes_evitar %}
+      <li style="font-size:12px;color:var(--cinza);padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)">{{ p }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Gerações recentes + resultados -->
+<div class="grid-2">
+  <!-- Gerações recentes -->
+  <div class="card">
+    <h2>📋 Últimas gerações</h2>
+    {% if geracoes_recentes %}
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Segmento</th>
+          <th>Aprov.</th>
+          <th>Hooks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in geracoes_recentes | reverse %}
+        <tr>
+          <td class="td-muted">{{ (g.data or '')[:10] }}</td>
+          <td class="td-amber">{{ g.segmento or '—' }}</td>
+          <td class="td-green">✅ {{ g.aprovados or 0 }}</td>
+          <td class="td-muted" style="font-size:11px;max-width:160px">
+            {% for c in (g.copies or [])[:2] %}
+              {% if c.hook %}"{{ c.hook[:40] }}…"{% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="color:var(--cinza);font-size:13px;padding:12px 0">
+      Nenhuma geração registrada ainda.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Resultados de campanha -->
+  <div class="card">
+    <h2>📊 Resultados de campanha (Mila)</h2>
+    {% if resultados %}
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Custo/msg</th>
+          <th>CTR</th>
+          <th>Freq.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in resultados %}
+        {% set m = r.get('metricas_extraidas', {}) %}
+        {% set custo = m.get('custo_mensagem') %}
+        <tr>
+          <td class="td-muted">{{ (r.data or '')[:10] }}</td>
+          <td class="{% if custo %}{% if custo < 1.5 %}td-green{% elif custo < 2.5 %}{% elif custo < 5 %}td-orange{% else %}td-red{% endif %}{% endif %}">
+            {% if custo %}R$ {{ '%.2f' | format(custo) }}{% else %}—{% endif %}
+          </td>
+          <td>{% if m.ctr %}{{ '%.2f' | format(m.ctr) }}%{% else %}—{% endif %}</td>
+          <td>{% if m.frequencia %}{{ '%.1f' | format(m.frequencia) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="color:var(--cinza);font-size:13px;padding:12px 0">
+      Nenhuma análise ainda. Use
+      <a href="/analyze" style="color:var(--amber)">Analisar Campanha</a>
+      para adicionar.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Ações rápidas -->
+<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+  <a href="/generate" class="btn btn-amber">✍️ Gerar copies</a>
+  <a href="/gallery"  class="btn btn-ghost">📸 Ver imagens</a>
+  <a href="/analyze"  class="btn btn-ghost">📊 Analisar campanha</a>
+  <button class="btn btn-ghost"
+          hx-get="/dashboard/data"
+          hx-target="#kpi-grid"
+          hx-swap="outerHTML"
+          hx-indicator="#refresh-spin">
+    <span id="refresh-spin" class="htmx-indicator"><span class="spinner"></span></span>
+    🔄 Atualizar KPIs
+  </button>
+</div>
+{% endblock %}

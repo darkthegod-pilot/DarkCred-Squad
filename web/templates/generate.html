@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Gerar Copies{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px">
+  <h1 class="page-title">Gerar Copies</h1>
+  <p class="page-sub">Alina + Vera geram variações de copy para o segmento escolhido</p>
+</div>
+
+<div style="display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:start">
+
+  <!-- Painel de configuração -->
+  <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
+    <h2>⚙️ Configurações</h2>
+
+    <form
+      hx-post="/generate/copy"
+      hx-target="#resultado"
+      hx-swap="innerHTML"
+      hx-indicator="#gerar-spin"
+      style="display:flex;flex-direction:column;gap:14px"
+    >
+      <div class="form-group">
+        <label class="form-label">Segmento</label>
+        <select name="segmento" class="form-select">
+          {% for seg in segmentos %}
+          <option value="{{ seg }}">{{ seg }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" x-data="{ qty: 3 }">
+        <label class="form-label">
+          Quantidade: <span style="color:var(--amber)" x-text="qty"></span>
+        </label>
+        <input type="range" name="quantidade" min="1" max="8" x-model.number="qty"
+               style="width:100%;accent-color:var(--amber)">
+        <input type="hidden" name="quantidade" :value="qty">
+      </div>
+
+      <button type="submit" class="btn btn-amber" style="width:100%;justify-content:center">
+        <span id="gerar-spin" class="htmx-indicator">
+          <span class="spinner"></span>
+        </span>
+        ✍️ Gerar
+      </button>
+    </form>
+
+    <hr style="border-color:var(--borda);margin:16px 0">
+
+    <h2>🖼 Gerar imagem</h2>
+    <form
+      hx-post="/generate/image"
+      hx-target="#img-resultado"
+      hx-swap="innerHTML"
+      hx-indicator="#img-spin"
+      style="display:flex;flex-direction:column;gap:10px"
+    >
+      <div class="form-group">
+        <label class="form-label">Segmento</label>
+        <select name="segmento" class="form-select">
+          {% for seg in segmentos %}
+          <option value="{{ seg }}">{{ seg }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center">
+        <span id="img-spin" class="htmx-indicator"><span class="spinner"></span></span>
+        🎨 Gerar imagem
+      </button>
+    </form>
+
+    <div id="img-resultado" style="margin-top:12px"></div>
+  </div>
+
+  <!-- Resultado dos copies -->
+  <div>
+    <div id="resultado">
+      <div style="padding:40px;text-align:center;color:var(--cinza)">
+        <div style="font-size:40px;margin-bottom:12px">✍️</div>
+        <div>Configure o segmento e clique em <strong style="color:var(--amber)">Gerar</strong></div>
+        <div style="font-size:12px;margin-top:8px">As variações aparecerão aqui</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
