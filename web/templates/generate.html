@@ -4,12 +4,12 @@
 {% block content %}
 <div style="margin-bottom:24px">
   <h1 class="page-title">Gerar Copies</h1>
-  <p class="page-sub">Alina + Vera geram variações de copy para o segmento escolhido</p>
+  <p class="page-sub">Alina + Vera criam variações de copy para o público escolhido. Depois, gere a imagem direto de cada variação.</p>
 </div>
 
-<div style="display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:start">
+<div class="generate-grid" style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start">
 
-  <!-- Painel de configuração -->
+  <!-- ── Painel de configuração (sticky) ───────────────────── -->
   <div class="card" style="position:sticky;top:calc(var(--topbar-h) + 20px)">
     <h2>⚙️ Configurações</h2>
 
@@ -20,66 +20,44 @@
       hx-indicator="#gerar-spin"
       style="display:flex;flex-direction:column;gap:14px"
     >
-      <div class="form-group">
-        <label class="form-label">Segmento</label>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Público-alvo</label>
         <select name="segmento" class="form-select">
-          {% for seg in segmentos %}
-          <option value="{{ seg }}">{{ seg }}</option>
+          {% for key, label in segmentos_labels %}
+          <option value="{{ key }}" {% if key == 'generico' %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </div>
 
-      <div class="form-group" x-data="{ qty: 3 }">
+      <div class="form-group" x-data="{ qty: 3 }" style="margin-bottom:0">
         <label class="form-label">
-          Quantidade: <span style="color:var(--amber)" x-text="qty"></span>
+          Variações: <span style="color:var(--amber);font-weight:700" x-text="qty"></span>
         </label>
         <input type="range" name="quantidade" min="1" max="8" x-model.number="qty"
-               style="width:100%;accent-color:var(--amber)">
+               style="width:100%;accent-color:var(--amber);margin-top:4px">
         <input type="hidden" name="quantidade" :value="qty">
       </div>
 
-      <button type="submit" class="btn btn-amber" style="width:100%;justify-content:center">
+      <button type="submit" class="btn btn-amber" style="width:100%;justify-content:center;padding:12px">
         <span id="gerar-spin" class="htmx-indicator">
           <span class="spinner"></span>
         </span>
-        ✍️ Gerar
+        ✍️ Gerar Copies
       </button>
     </form>
 
-    <hr style="border-color:var(--borda);margin:16px 0">
-
-    <h2>🖼 Gerar imagem</h2>
-    <form
-      hx-post="/generate/image"
-      hx-target="#img-resultado"
-      hx-swap="innerHTML"
-      hx-indicator="#img-spin"
-      style="display:flex;flex-direction:column;gap:10px"
-    >
-      <div class="form-group">
-        <label class="form-label">Segmento</label>
-        <select name="segmento" class="form-select">
-          {% for seg in segmentos %}
-          <option value="{{ seg }}">{{ seg }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center">
-        <span id="img-spin" class="htmx-indicator"><span class="spinner"></span></span>
-        🎨 Gerar imagem
-      </button>
-    </form>
-
-    <div id="img-resultado" style="margin-top:12px"></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--borda);font-size:12px;color:var(--cinza);line-height:1.5">
+      💡 Após gerar as variações, clique em <strong style="color:var(--amber)">🎨 Gerar Imagem</strong> em qualquer card para criar o criativo visual.
+    </div>
   </div>
 
-  <!-- Resultado dos copies -->
+  <!-- ── Área de resultado ────────────────────────────────── -->
   <div>
     <div id="resultado">
-      <div style="padding:40px;text-align:center;color:var(--cinza)">
-        <div style="font-size:40px;margin-bottom:12px">✍️</div>
-        <div>Configure o segmento e clique em <strong style="color:var(--amber)">Gerar</strong></div>
-        <div style="font-size:12px;margin-top:8px">As variações aparecerão aqui</div>
+      <div style="padding:60px 24px;text-align:center;color:var(--cinza);background:var(--card);border:1px solid var(--borda);border-radius:12px">
+        <div style="font-size:48px;margin-bottom:16px">✍️</div>
+        <div style="font-size:15px;font-weight:600;color:var(--branco);margin-bottom:8px">Pronto para criar</div>
+        <div style="font-size:13px">Escolha o público-alvo e clique em <strong style="color:var(--amber)">Gerar Copies</strong></div>
       </div>
     </div>
   </div>

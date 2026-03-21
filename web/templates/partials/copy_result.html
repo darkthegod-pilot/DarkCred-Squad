@@ -1,11 +1,14 @@
 {% if variacoes %}
-<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
-  <span class="badge badge-amber">{{ variacoes | length }} variações — {{ segmento }}</span>
+<div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <span class="badge badge-amber">{{ variacoes | length }} variações</span>
+  <span class="badge badge-violet">{{ seg_label or segmento }}</span>
+  <span style="font-size:12px;color:var(--cinza);margin-left:auto">Clique em 🎨 para gerar a imagem de cada copy</span>
 </div>
 
 {% for v in variacoes %}
-<div class="copy-card">
-  <div class="copy-card-header">
+<div class="copy-card" style="margin-bottom:16px">
+  <!-- Header: ângulo + score -->
+  <div class="copy-card-header" style="margin-bottom:12px">
     <span class="badge badge-violet">{{ v.angulo or v.get('angulo_psicologico', 'copy') }}</span>
     {% if v.score %}
     <span class="badge {% if v.score >= 8 %}badge-green{% elif v.score >= 7 %}badge-amber{% else %}badge-red{% endif %}">
@@ -15,27 +18,49 @@
   </div>
 
   {% if v.hook %}
-  <div class="copy-hook">{{ v.hook }}</div>
+  <div class="copy-hook" style="margin-bottom:8px">{{ v.hook }}</div>
   {% endif %}
 
   {% if v.corpo %}
-  <div class="copy-corpo">{{ v.corpo }}</div>
+  <div class="copy-corpo" style="margin-bottom:10px">{{ v.corpo }}</div>
   {% endif %}
 
   {% if v.cta %}
-  <div class="copy-cta">CTA: <strong style="color:var(--amber)">{{ v.cta }}</strong></div>
+  <div class="copy-cta" style="margin-bottom:12px">
+    CTA: <strong style="color:var(--amber)">{{ v.cta }}</strong>
+  </div>
   {% endif %}
 
   {% if v.justificativa %}
-  <div style="font-size:11px;color:var(--cinza);margin-top:8px;padding-top:8px;border-top:1px solid var(--borda)">
+  <div style="font-size:11px;color:var(--cinza);padding:8px 0;border-top:1px solid var(--borda);margin-bottom:12px">
     {{ v.justificativa }}
   </div>
   {% endif %}
+
+  <!-- Botão Gerar Imagem -->
+  <div style="border-top:1px solid var(--borda);padding-top:12px">
+    <form
+      hx-post="/generate/image"
+      hx-target="#img-result-{{ loop.index }}"
+      hx-swap="innerHTML"
+      hx-indicator="#img-spin-{{ loop.index }}"
+    >
+      <input type="hidden" name="segmento" value="{{ segmento }}">
+      <input type="hidden" name="hook"     value="{{ v.hook or '' }}">
+      <input type="hidden" name="corpo"    value="{{ v.corpo or '' }}">
+      <input type="hidden" name="cta"      value="{{ v.cta or '' }}">
+      <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center">
+        <span id="img-spin-{{ loop.index }}" class="htmx-indicator"><span class="spinner"></span></span>
+        🎨 Gerar Imagem para esta variação
+      </button>
+    </form>
+    <div id="img-result-{{ loop.index }}" style="margin-top:10px"></div>
+  </div>
 </div>
 {% endfor %}
 
 {% else %}
 <div class="alert alert-error">
-  Nenhuma variação gerada. Tente novamente.
+  <strong>⚠️ Nenhuma variação gerada.</strong> Tente novamente ou escolha outro público-alvo.
 </div>
 {% endif %}

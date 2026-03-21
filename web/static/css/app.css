@@ -88,8 +88,17 @@ body {
   display: flex;
   flex-direction: column;
   padding: 16px 0 24px;
+  /* Mobile: oculta por padrão, Alpine.js mostra via :style */
+  transform: translateX(-100%);
   transition: transform 0.25s ease;
 }
+/* Desktop: sidebar sempre visível */
+@media (min-width: 1024px) {
+  .sidebar {
+    transform: translateX(0) !important;
+  }
+}
+
 .sidebar-section-label {
   font-size: 10px;
   font-weight: 700;
@@ -107,7 +116,6 @@ body {
   font-weight: 500;
   color: var(--cinza);
   text-decoration: none;
-  border-radius: 0;
   transition: background 0.15s, color 0.15s;
   border-left: 3px solid transparent;
 }
@@ -144,11 +152,21 @@ body {
 /* ── Main content ── */
 .main-content {
   margin-top: var(--topbar-h);
-  padding: 24px;
+  padding: 28px 32px;
   min-height: calc(100vh - var(--topbar-h));
 }
+/* Desktop: deslocar à direita da sidebar */
 @media (min-width: 1024px) {
-  .main-content { margin-left: var(--sidebar-w); }
+  .main-content {
+    margin-left: var(--sidebar-w);
+  }
+}
+/* Mobile: sem margem lateral */
+@media (max-width: 1023px) {
+  .main-content {
+    margin-left: 0;
+    padding: 16px;
+  }
 }
 
 /* ── Cards ── */
@@ -489,22 +507,31 @@ td { font-size: 12px; color: var(--branco); padding: 8px 10px; border-bottom: 1p
   background: var(--card2);
   border: 1px solid var(--borda);
   border-radius: 10px;
-  padding: 16px;
+  padding: 18px;
   margin-bottom: 12px;
 }
 .copy-card-header {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 10px;
 }
-.copy-hook { font-weight: 700; font-size: 14px; color: var(--amber); margin-bottom: 6px; }
-.copy-corpo { font-size: 13px; color: var(--branco); line-height: 1.55; margin-bottom: 8px; white-space: pre-wrap; }
+.copy-hook  { font-weight: 700; font-size: 15px; color: var(--amber); margin-bottom: 8px; }
+.copy-corpo { font-size: 13px; color: var(--branco); line-height: 1.6; margin-bottom: 8px; white-space: pre-wrap; }
 .copy-cta   { font-size: 12px; color: var(--cinza); }
 
 /* ── Alert / info boxes ── */
-.alert { border-radius: 10px; padding: 14px 16px; font-size: 13px; margin-bottom: 12px; }
+.alert { border-radius: 10px; padding: 14px 16px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
 .alert-info  { background: rgba(14,165,233,0.12); border: 1px solid rgba(14,165,233,0.3); color: var(--sky); }
 .alert-error { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.3);  color: var(--red); }
 .alert-ok    { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: var(--emerald); }
+.alert-error small,
+.alert-error div[style*="monospace"] {
+  display: block;
+  margin-top: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  opacity: 0.65;
+  word-break: break-all;
+}
 
 /* ── Loading spinner ── */
 .htmx-indicator { display: none; }
@@ -544,6 +571,7 @@ td { font-size: 12px; color: var(--branco); padding: 8px 10px; border-bottom: 1p
   background: transparent; border: none; cursor: pointer;
   color: var(--cinza); font-size: 20px;
 }
+/* Esconde hamburger no desktop */
 @media (min-width: 1024px) { .hamburger { display: none; } }
 
 /* ── Mobile sidebar overlay ── */
@@ -554,7 +582,6 @@ td { font-size: 12px; color: var(--branco); padding: 8px 10px; border-bottom: 1p
 }
 @media (min-width: 1024px) {
   .sidebar-overlay { display: none !important; }
-  .sidebar { transform: translateX(0) !important; }
 }
 
 /* ── Grid helpers ── */
@@ -562,6 +589,12 @@ td { font-size: 12px; color: var(--branco); padding: 8px 10px; border-bottom: 1p
 .grid-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
 
+/* ── Generate page grid ── */
+.generate-grid { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: start; }
+@media (max-width: 768px) {
+  .generate-grid { grid-template-columns: 1fr !important; }
+}
+
 /* ── Typography ── */
-.page-title { font-family: 'Montserrat', sans-serif; font-size: 20px; font-weight: 800; color: var(--branco); margin: 0 0 4px; }
-.page-sub   { font-size: 13px; color: var(--cinza); margin: 0 0 20px; }
+.page-title { font-family: 'Montserrat', sans-serif; font-size: 22px; font-weight: 800; color: var(--branco); margin: 0 0 4px; }
+.page-sub   { font-size: 13px; color: var(--cinza); margin: 0 0 20px; line-height: 1.5; }

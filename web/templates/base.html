@@ -19,8 +19,8 @@
   <!-- HTMX -->
   <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
 
-  <!-- Alpine.js -->
-  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <!-- Alpine.js (carrega antes do render para evitar flash) -->
+  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
 
   {% block head %}{% endblock %}
 </head>
@@ -30,7 +30,7 @@
   <header class="topbar">
     <button class="hamburger" @click="sidebarOpen = !sidebarOpen" aria-label="Menu">
       <span x-show="!sidebarOpen">☰</span>
-      <span x-show="sidebarOpen">✕</span>
+      <span x-show="sidebarOpen" style="display:none">✕</span>
     </button>
 
     <a href="/dashboard" class="topbar-logo">DarkCred</a>
@@ -51,9 +51,7 @@
 
   <!-- ── Sidebar ──────────────────────────────────── -->
   <nav class="sidebar"
-       :style="sidebarOpen ? 'transform:translateX(0)' : ''"
-       style="transform: translateX(-100%)"
-       x-init="$watch('sidebarOpen', v => { if(window.innerWidth >= 1024) return })">
+       :style="sidebarOpen ? 'transform:translateX(0)' : ''">
 
     <!-- Navegação Principal -->
     <div class="sidebar-section-label">Navegação</div>
@@ -124,18 +122,6 @@
   <main class="main-content" @click="sidebarOpen = false">
     {% block content %}{% endblock %}
   </main>
-
-  <!-- Fix sidebar always visible on desktop -->
-  <script>
-    function fixSidebar() {
-      const sidebar = document.querySelector('.sidebar');
-      if (window.innerWidth >= 1024) {
-        sidebar.style.transform = 'translateX(0)';
-      }
-    }
-    fixSidebar();
-    window.addEventListener('resize', fixSidebar);
-  </script>
 
   {% block scripts %}{% endblock %}
 </body>
